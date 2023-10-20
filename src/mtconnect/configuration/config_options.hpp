@@ -34,12 +34,15 @@ namespace mtconnect {
 
     /// @name Global Configuration Options
     ///@{
-    DECLARE_CONFIGURATION(ExecDirectory);
     DECLARE_CONFIGURATION(WorkingDirectory);
+    DECLARE_CONFIGURATION(DataPath);
+    DECLARE_CONFIGURATION(ConfigPath);
+    DECLARE_CONFIGURATION(PluginPath);
     ///@}
 
     /// @name Agent Configuration
     ///@{
+    DECLARE_CONFIGURATION(AgentDeviceUUID);
     DECLARE_CONFIGURATION(DisableAgentDevice);
     DECLARE_CONFIGURATION(AllowPut);
     DECLARE_CONFIGURATION(AllowPutFrom);
@@ -76,9 +79,14 @@ namespace mtconnect {
 
     /// @name MQTT Configuration
     ///@{
-    DECLARE_CONFIGURATION(DeviceTopic);
+    DECLARE_CONFIGURATION(ProbeTopic);
     DECLARE_CONFIGURATION(AssetTopic);
     DECLARE_CONFIGURATION(ObservationTopic);
+    DECLARE_CONFIGURATION(CurrentTopic);
+    DECLARE_CONFIGURATION(SampleTopic);
+    DECLARE_CONFIGURATION(MqttCurrentInterval);
+    DECLARE_CONFIGURATION(MqttSampleInterval);
+    DECLARE_CONFIGURATION(MqttSampleCount);
     DECLARE_CONFIGURATION(MqttCaCert);
     DECLARE_CONFIGURATION(MqttCert);
     DECLARE_CONFIGURATION(MqttPrivateKey);
@@ -89,6 +97,7 @@ namespace mtconnect {
     DECLARE_CONFIGURATION(MqttConnectInterval);
     DECLARE_CONFIGURATION(MqttUserName);
     DECLARE_CONFIGURATION(MqttPassword);
+    DECLARE_CONFIGURATION(MqttMaxTopicDepth);
     ///@}
 
     /// @name Adapter Configuration

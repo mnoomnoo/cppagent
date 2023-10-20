@@ -73,6 +73,9 @@ namespace mtconnect {
       /// @param[in] name name or id of the data item
       /// @return shared pointer to the data item if found
       virtual DataItemPtr findDataItem(const std::string &device, const std::string &name) = 0;
+      /// @brief get the current schema version as an integer
+      /// @returns the schema version as an integer [major * 100 + minor] as a 32bit integer.
+      virtual int32_t getSchemaVersion() const = 0;
       /// @brief iterate through all the data items calling `fun` for each
       /// @param[in] fun The function or lambda to call
       virtual void eachDataItem(EachDataItem fun) = 0;
@@ -84,7 +87,7 @@ namespace mtconnect {
       virtual void deliverAsset(asset::AssetPtr asset) = 0;
       /// @brief Deliver a device to the agent.
       /// @param[in] device the new or changed device
-      virtual void deliverDevice(DevicePtr device) = 0;
+      virtual void deliverDevices(std::list<DevicePtr> device) = 0;
       /// @brief Deliver a command, remove or remova all
       /// @param[in]  command the command
       virtual void deliverAssetCommand(entity::EntityPtr command) = 0;

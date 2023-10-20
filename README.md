@@ -1,7 +1,7 @@
 
-MTConnect C++ Agent Version 2.1
+MTConnect C++ Agent Version 2.2
 --------
-[![Build status](https://ci.appveyor.com/api/projects/status/g4xdyitw7h41rl48/branch/master?svg=true)](https://ci.appveyor.com/project/WilliamSobel/cppagent/branch/master)
+[![Build MTConnect C++ Agent](https://github.com/mtconnect/cppagent/actions/workflows/build.yml/badge.svg)](https://github.com/mtconnect/cppagent/actions/workflows/build.yml)
 
 The C++ Agent provides the a complete implementation of the HTTP
 server required by the MTConnect standard. The agent provides the
@@ -12,6 +12,8 @@ the devices and the location of the adapter.
 **NOTE: This version cannot currently be built on Windows XP since there is currently no support for the XP toolchain and C++ 17.**
 
 Pre-built binary releases for Windows are available from [Releases](https://github.com/mtconnect/cppagent/releases) for those who do not want to build the agent themselves. For *NIX users, you will need libxml2, cppunit, and cmake as well as build essentials.
+
+Version 2.2.0 Support for all Version 2.2 standard changes and dynamic configuration from adapters. Upgrade to conan 2.
 
 Version 2.1.0 Added MQTT Sink, Agent Restart and new JSON format (version 2)
 
@@ -570,6 +572,10 @@ Configuration Parameters
 
 ### Top level configuration items ####
 
+* `AgentDeviceUUID` - Set the UUID of the agent device
+
+    *Default*: UUID derived from the IP address and port of the agent
+
 * `BufferSize` - The 2^X number of slots available in the circular
   buffer for samples, events, and conditions.
 
@@ -745,17 +751,70 @@ The following parameters must be present to enable https requests. If there is n
 
 #### MQTT Sink
 
+Enabled in `agent.cfg` by specifying:
+
+```
+Sinks {
+  MqttService {
+    # Configuration Options...
+  }
+}
+```
+
 * `DeviceTopic` - Prefix for the Device Model topic
 
-    *Default*: MTConnect/Device/
+    *Default*: `MTConnect/Device/`
 
 * `ObservationTopic` - Prefix for the Streams events, samples, and conditions
 
-    *Default*: MTConnect/Observation/
+    *Default*: `MTConnect/Observation/`
 
 * `AssetTopic` - Prefix for the Assets
 
-    *Default*: MTConnect/Asset/
+    *Default*: `MTConnect/Asset/`
+
+#### MQTT Sink 2
+
+Enabled in `agent.cfg` by specifying:
+
+```
+Sinks {
+  Mqtt2Service {
+    # Configuration Options...
+  }
+}
+```
+
+* `ProbeTopic` - Prefix for the Device Model topic
+
+    > Note: The `[device]` will be replace with the uuid of each device. Other patterns can be created, 
+    > for example: `MTConnect/[device]/Probe` will group by device instead of operation.
+
+    *Default*: `MTConnect/Probe/[device]`
+
+* `CurrentTopic` - Prefix for the Current 
+
+    *Default*: `MTConnect/Current/[device]`
+
+* `SampleTopic` - Prefix for the Sample 
+
+    *Default*: `MTConnect/Current/[device]`
+
+* `AssetTopic` - Prefix for the Assets
+
+    *Default*: `MTConnect/Asset/[device]`
+    
+* `MqttCurrentInterval` - The frequency to publish currents. Acts like a keyframe in a video stream.
+
+    *Default*: 10000ms
+    
+* `MqttSampleInterval` - The frequency to publish samples. Works the same way as the `interval` in the rest call. Groups observations up and publishes with the minimum interval given. If nothing is availble, will wait until an observation arrives to publish.
+
+    *Default*: 500ms
+
+* `MqttSampleCount` - The maxmimum number of observations to publish at one time.
+
+    *Default*: 1000
 
 ### Adapter Configuration Items ###
 
@@ -937,9 +996,20 @@ If the value itself contains a pipe character `|` the pipe must be escaped using
 
         2009-06-15T00:00:00.000000|description|"Text with \| (pipe) character."
 
-Conditions require seven (7) fields as follows:
+Conditions require six (6) fields as follows:
 
-	<timestamp>|<data_item_name>|<level>|<condition_id>|<native_code>|<native_severity>|<qualifier>|<message>
+	<timestamp>|<data_item_name>|<level>|<native_code>|<native_severity>|<qualifier>|<message>
+	
+	Condition id and native code are set to the same value given as <native_code>
+
+	<timestamp>|<data_item_name>|<level>|<native_code>:<condition_id>|<native_severity>|<qualifier>|<message>
+	
+	Condition id is set to condition_id and native code is set to native_code
+	
+	<timestamp>|<data_item_name>|<level>|<condition_id>|<native_severity>|<qualifier>|<message>
+	
+	Condition id is set to condition_id and native code is not set
+	
 	
 For a complete description of these fields, see the standard. An example line will look like this:
 
@@ -1276,6 +1346,73 @@ The agent build is dependent on the following utilities:
 * python 3 and pip to support conan for dependency and package management
 * ruby and rake for mruby to support building the embedded scripting engine [not required if -o with_ruby=False]
 
+## Conan MTConnect Options (set using `-o <option>=<value>`)
+
+* `agent_prefix`: Prefix the agent and agent_lib executable. For example `-o agent_prefix=mtc` create mtcagent.exe and mtcagent_lib.lib
+
+    *default*: ''
+
+* `cpack`: At the end of the build, run cpack to create a deployable package. By default it will go in the build direct, see `cpack_destination` to change the default location. Values: `True` or `False`.
+
+    *default*: False
+
+* `development`: Create a build environment suitable for developemnt. Changes the test_package subdirectory by including it as part of the library build for easier debugging on IDEs and integrated build debug environments. Values: `True` or `False`.
+
+    *default*: False
+
+* `fPIC`: Enables Position Independent Code on *NIX platforms allowing the machine code to be dynamically relocate on load. Values: `True` or `False`.
+
+    *default*: True
+
+* `shared`: Specifies if the build will create shared libraries (.dll/.so/.dylib) or static libraries. Also makes dependent libraries dynamic as well. Packaging picks up all dependent libraries when creating the ZIP. This is useful when creating plugins since there is less duplication of dependent code. Values: `True` or `False`. 
+
+    *default*: False
+
+* `winver`: For windows, version of the minimum target operating system version. Defaults to Windows Vista.
+
+    *default*: 0x600
+
+* `with_docs`: Enable generation of MTConnect Agent library documentation using doxygen. If true, will build the use conan to build doxygen if it is not installed. Values: `True` or `False`. 
+
+    *default*: False
+
+* `with_ruby`: Enable mruby extensions for dynamic scripting. Values: `True` or `False`. 
+
+    *default*: True
+
+* `without_ipv6`: Disable IPV6 support when building on operating systems that disable IPV6 services. Some docker images disable IPV6. Values: `True` or `False`. 
+
+    *default*: False
+
+* `cpack_destination`: The destination directory for the package
+
+   *default*: _Package build directory_
+
+* `cpack_name`: The name of the package generated by cpack
+
+   *default*: _Default package name: agent_{version}_{OS}_
+
+* `cpack_generator`:
+
+    *default*: `ZIP` for windows and `TGZ` for *NIX
+
+
+### Conan useful settings (set using `-s <setting>=<value>`)
+
+* `build_type`: Changes the debug or release build type. Values: `Release`, `Debug`, `RelWithDebInfo`, and `MinSizeRel`. See CMake documentation for explanations.
+
+    *default*: `Release`
+    
+### Conan useful configurations (set using `-c <config>=<value>`)
+
+* `tools.build:skip_test`: Stops conan from running the tests. Test package will still build. To disable tests from building, use `-tf ""` or `--testfolder=` to skip the building of tests.
+
+    *default*: `False`
+
+* `tools.build:jobs`: Sets the number of concurrent processes used in the build. If the machine runs out of resources, reduce the number of concurrent processes.
+
+    *default*: _number of processes_
+
 ## Building on Windows
 
 The MTConnect Agent uses the conan package manager to install dependencies:
@@ -1298,14 +1435,10 @@ Install dependencies from the downloads above. Make sure python, ruby, and cmake
 Clone the agent to another directory:
 
 	git clone https://github.com/mtconnect/cppagent.git
-
-Make a build subdirectory of `cppagent`
-
-    cd cppagent
-    conan export conan\mqtt_cpp
-    conan export conan\mruby
 	
 ####  To build for 64 bit Windows
+
+The following 64 and 32 bit builds will create the zip package in the directory where the repository was cloned. The build will occur in the .conan2 directory of the user's home directory.
 	
 Make sure to setup the environment:
 
@@ -1314,25 +1447,24 @@ Make sure to setup the environment:
 or
 
     "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
-	
-   	conan build . -pr conan/profiles/vs64 --build=missing
+   	conan create cppagent -pr cppagent/conan/profiles/vs64 --build=missing -o cpack=True -o zip_destination=.
 
 #### To build for 32 bit Windows
 
-   	conan build . -pr conan/profiles/vs32
+    "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvars32.bat"
 
-### Package the releases
+or
 
-   	conan build . -pr conan/profiles/vs64 -o cpack=True --build=missing
-   	conan build . -pr conan/profiles/vs32 -o cpack=True --build=missing
+    "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars32.bat"
+   	conan create cppagent -pr cppagent/conan/profiles/vs32 --build=missing -o cpack=True -o zip_destination=.
 
 ## *NIX Builds
 
 The minimum memory (main + swap) when building with on CPU is 3GB. Less than that will likely cause the build to fail.
 
-If the build runs out of resources, there are two options, you can add swap or set the following environment variable:
+If the build runs out of resources, there are two options, you can add swap or set the following command line option:
 
-    export CONAN_CPU_COUNT=1
+    -c tools.build:jobs=1
 	
 to instruct conan to not parallelize the builds. Some of the modules that include boost beast require significant resources to build.
 
@@ -1340,8 +1472,8 @@ to instruct conan to not parallelize the builds. Some of the modules that includ
 
 ### Setup the build
 
-    sudo apt-get install build-essential python3.9 python3-pip git cmake ruby rake autoconf
-	python3.9 -m pip install conan
+    sudo apt-get install build-essential python3 python3-pip git cmake ruby rake autoconf
+	python3 -m pip install conan
     echo 'export PATH=$HOME/.local/bin:$PATH' >> .bashrc
 
 ### Download the source
@@ -1350,7 +1482,7 @@ to instruct conan to not parallelize the builds. Some of the modules that includ
 	
 ### Build the agent
 	
-	conan build . -pr conan/profile/gcc --build=missing
+	conan create cppagent -pr cppagent/conan/profiles/gcc --build=missing
 	
 ## Building on Mac OS
 
@@ -1363,7 +1495,6 @@ Install brew and xcode command line tools
 
     brew install git
     brew install cmake
-
 	pip3 install conan
 
 ### Download the source
@@ -1372,11 +1503,11 @@ Install brew and xcode command line tools
 	
 ### Build the agent
 	
-	conan build . -pr conan/profile/macos --build=missing
+	conan create cppagent -pr cppagent/conan/profiles/macos --build=missing
     
 ### Generate an xcode project for debugging
 	
-	conan build . -pr conan/profile/xcode -s build_type=Debug --build=missing
+	conan build . -pr conan/profiles/xcode -s build_type=Debug --build=missing -o development=True
 
 ## Building on Fedora Alpine
 
@@ -1394,9 +1525,11 @@ Install brew and xcode command line tools
 	pip3 install conan	
 	git clone https://github.com/mtconnect/cppagent.git
 
-## Build the agent
+### Build the agent
 
-	conan build . -pr conan/profile/gcc --build=missing
+	conan create cppagent -pr cppagent/conan/profiles/gcc --build=missing
+
+## For some examples, see the CI/CD workflows in `.github/workflows/build.yml`
 
 # Creating Test Certifications (see resources gen_certs shell script)
 
@@ -1466,3 +1599,8 @@ For client.cnf
 
     openssl verify -CAfile clientca.crt clientca.crt
     openssl verify -CAfile clientca.crt client.crt
+
+# Docker
+
+See [demo ](demo) or [docker](docker)
+

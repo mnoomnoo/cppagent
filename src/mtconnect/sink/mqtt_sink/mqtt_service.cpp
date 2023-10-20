@@ -51,10 +51,12 @@ namespace mtconnect {
                    {{configuration::MqttCaCert, string()},
                     {configuration::MqttPrivateKey, string()},
                     {configuration::MqttCert, string()},
+                    {configuration::MqttUserName, string()},
+                    {configuration::MqttPassword, string()},
                     {configuration::MqttClientId, string()}});
         AddDefaultedOptions(config, m_options,
                             {{configuration::MqttHost, "127.0.0.1"s},
-                             {configuration::DeviceTopic, "MTConnect/Device/"s},
+                             {configuration::ProbeTopic, "MTConnect/Device/"s},
                              {configuration::AssetTopic, "MTConnect/Asset/"s},
                              {configuration::ObservationTopic, "MTConnect/Observation/"s},
                              {configuration::MqttPort, 1883},
@@ -87,7 +89,7 @@ namespace mtconnect {
           }
         };
 
-        m_devicePrefix = get<string>(m_options[configuration::DeviceTopic]);
+        m_devicePrefix = get<string>(m_options[configuration::ProbeTopic]);
         m_assetPrefix = get<string>(m_options[configuration::AssetTopic]);
         m_observationPrefix = get<string>(m_options[configuration::ObservationTopic]);
 

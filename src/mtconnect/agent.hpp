@@ -210,6 +210,10 @@ namespace mtconnect {
     /// @return The MTConnect schema version as a string
     const auto &getSchemaVersion() const { return m_schemaVersion; }
 
+    /// @brief Get the integer schema version based on configuration.
+    /// @returns the schema version as an integer [major * 100 + minor] as a 32bit integer.
+    const auto getIntSchemaVersion() const { return m_intSchemaVersion; }
+
     /// @brief Find a device by name
     /// @param[in] name The name of the device to find
     /// @return A shared pointer to the device
@@ -274,7 +278,8 @@ namespace mtconnect {
     /// @brief receive a single device from a source
     /// @param[in] deviceXml the device xml as a string
     /// @param[in] source the source loading the device
-    void loadDevice(DevicePtr device, const std::optional<std::string> source = std::nullopt);
+    void loadDevices(std::list<DevicePtr> device,
+                     const std::optional<std::string> source = std::nullopt);
 
     /// @brief receive and parse a single device from a source
     /// @param[in] deviceXml the device xml as a string
@@ -432,6 +437,10 @@ namespace mtconnect {
     /// @param[in] device device to modify
     void createUniqueIds(DevicePtr device);
 
+    /// @brief get agent options
+    /// @returns constant reference to option map
+    const auto &getOptions() const { return m_options; }
+
   protected:
     friend class AgentPipelineContract;
 
@@ -570,6 +579,7 @@ namespace mtconnect {
           fun(ldi);
       }
     }
+    int32_t getSchemaVersion() const override { return m_agent->getIntSchemaVersion(); }
     void deliverObservation(observation::ObservationPtr obs) override
     {
       m_agent->receiveObservation(obs);
@@ -579,7 +589,7 @@ namespace mtconnect {
     void deliverConnectStatus(entity::EntityPtr, const StringList &devices,
                               bool autoAvailable) override;
     void deliverCommand(entity::EntityPtr) override;
-    void deliverDevice(DevicePtr device) override { m_agent->loadDevice(device); }
+    void deliverDevices(std::list<DevicePtr> devices) override { m_agent->loadDevices(devices); }
 
     void sourceFailed(const std::string &identity) override { m_agent->sourceFailed(identity); }
 
