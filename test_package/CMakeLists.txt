@@ -187,6 +187,7 @@ macro(add_agent_test AGENT_TEST_NAME ADD_TEST_HELPER SUB_FOLDER)
   # set_property(TARGET ${AGENT_TEST_NAME}_test PROPERTY LINK_FLAGS_DEBUG "${COVERAGE_FLAGS}")
   target_link_libraries(${AGENT_TEST_NAME}_test agent_test_lib  
     $<$<PLATFORM_ID:Linux>:pthread>
+    $<$<PLATFORM_ID:Linux>:atomic˙>
     $<$<PLATFORM_ID:Windows>:bcrypt>)
 
   target_compile_definitions(${AGENT_TEST_NAME}_test
