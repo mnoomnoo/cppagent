@@ -1005,8 +1005,8 @@ Sinks {
 		}
 	```
 
-MQTT Ingess Protocol Version 2.0
-=======
+### MQTT Ingess Protocol Version 2.0
+
 In general the data format will be {"timestamp": "YYYY-MM-DDThh:mm:ssZ","dataItemId":"value", "dataItemId":{"key1":"value1", ..., "keyn":"valuen}} 
 
 **NOTE**: See the standard for the complete description of the fields for the data item representations below.
@@ -1699,7 +1699,7 @@ Install brew and xcode command line tools
     
 ### Generate an xcode project for debugging
 	
-	conan build . -pr conan/profile/xcode -s build_type=Debug --build=missing -o development=True
+	conan build . -pr conan/profiles/xcode -s build_type=Debug --build=missing -o development=True
 
 ## Building on Fedora Alpine
 
@@ -1719,7 +1719,7 @@ Install brew and xcode command line tools
 
 ### Build the agent
 
-	conan create cppagent -pr cppagent/conan/profile/gcc --build=missing
+	conan create cppagent -pr cppagent/conan/profiles/gcc --build=missing
 
 ## For some examples, see the CI/CD workflows in `.github/workflows/build.yml`
 
