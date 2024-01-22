@@ -1005,6 +1005,128 @@ Sinks {
 		}
 	```
 
+MQTT Ingess Protocol Version 2.0
+=======
+In general the data format will be {"timestamp": "YYYY-MM-DDThh:mm:ssZ","dataItemId":"value", "dataItemId":{"key1":"value1", ..., "keyn":"valuen}} 
+
+**NOTE**: See the standard for the complete description of the fields for the data item representations below.
+
+A simple set of events and samples will look something like this:
+
+	```json
+	{
+       "timestamp": "2023-11-06T12:12:44Z",			//Time Stamp
+        "tempId": 22.6,								//Temperature
+        "positionId": 1002.345,						//X axis position
+        "executionId": "ACTIVE"						//Execution state
+	}
+	```
+	
+A condition requires the key to be the dataItemId and requires the 5 fileds as shown in the example below
+
+	```json
+	{
+       "timestamp": "2023-11-06T12:12:44Z",
+		"dataItemId": {
+		  "level": "fault",
+		  "nativeSeverity": "1000",
+		  "qualifier": "HIGH",
+		  "nativeCode": "ABC",
+		  "message": "something went wrong"
+		}
+	}
+	```
+A message requires the key to be the dataItemId and requires the nativeCode field as shown in the example below
+
+	```json
+	{
+       "timestamp": "2023-11-06T12:12:44Z",
+		"messsageId": {
+		  "nativeCode": "ABC",
+		  "message": "something went wrong"
+		}
+	}
+	```
+	
+The time series representation requires the key to be the dataItemId and requires 2 fields "count" and "values" and 1 to n comma delimited values.  
+**NOTE**: The "frequency" field is optional.
+
+	```json
+	{
+		"timestamp": "2023-11-06T12:12:44Z",
+		"timeSeries1": {
+			"count": 10,
+			"frequency": 100,
+			"values": [1,2,3,4,5,6,7,8,9,10]
+		}
+	}
+	```
+The dataset represebtation requires the the dataItemId as the key and the "values" field.   It may also have the optional "resetTriggered" field.
+
+	```json
+	{
+	{
+		"timestamp": "2023-11-09T11:20:00Z",
+		"dataSetId": {
+			"key1": 123,
+			"key2": 456,
+			"key3": 789
+		}
+	}
+	```
+
+	Example with the optional "resetTriggered" filed:	
+	
+	```json
+	{
+		"timestamp": "2023-11-09T11:20:00Z",
+		"cncregisterset1": {
+			"resetTriggered": "NEW",
+			"value": {"r1":"v1", "r2":"v2", "r3":"v3" }
+		}
+	}
+	```
+
+The table represebtation requires the the dataItemId as the key and the "values" field.   It may also have the optional "resetTriggered" field.
+
+	```json
+	
+	{
+		"timestamp":"2023-11-06T12:12:44Z",
+		"tableId":{
+		  "row1":{
+			"cell1":"Some Text",
+			"cell2":3243
+		  },
+		  "row2": {
+			"cell1":"Some Other Text",
+			"cell2":243        
+		  }      
+		}
+	}
+	```
+
+	Example with the optional resetTriggered field:
+
+	```json
+	{
+		"timestamp": "2023-11-09T11:20:00Z",
+		"a1": {
+			"resetTriggered": "NEW",
+			"value": {
+				"r1": {
+					"k1": 123.45,
+					"k3": 6789
+				},
+				"r2": null
+			}
+		}
+	}
+	```
+
+
+
+
 
 ### Agent Adapter Configuration
 
