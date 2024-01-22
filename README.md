@@ -1695,7 +1695,7 @@ Install brew and xcode command line tools
 	
 ### Build the agent
 	
-	conan create cppagent -pr cppagent/conan/profile/macos --build=missing
+	conan create cppagent -pr cppagent/conan/profiles/macos --build=missing
     
 ### Generate an xcode project for debugging
 	
