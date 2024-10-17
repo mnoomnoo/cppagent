@@ -96,7 +96,7 @@ namespace mtconnect {
         void pubishInitialContent();
 
         /// @brief Publish a current using `CurrentInterval` option.
-        void publishCurrent(boost::system::error_code ec);
+        SequenceNumber_t publishCurrent(boost::system::error_code ec);
 
         /// @brief publish sample when observations arrive.
         SequenceNumber_t publishSample(std::shared_ptr<observation::AsyncObserver> sampler);
@@ -113,6 +113,12 @@ namespace mtconnect {
         /// @return `true` when the client was connected
         bool isConnected() { return m_client && m_client->isConnected(); }
 
+        /// @name Retain and QOS flags
+        ///@{
+        auto getRetain() { return m_retain; }
+        auto getQOS() { return m_qos; }
+        ///@}
+
       protected:
         const FilterSet &filterForDevice(const DevicePtr &device)
         {
@@ -122,11 +128,35 @@ namespace mtconnect {
             auto pos = m_filters.emplace(*(device->getUuid()), FilterSet());
             filter = pos.first;
             auto &set = filter->second;
-            for (const auto &wdi : device->getDeviceDataItems())
+
+            auto xpath = GetOption<string>(m_options, configuration::MqttXPath);
+            if (xpath)
             {
-              const auto di = wdi.lock();
-              if (di)
-                set.insert(di->getId());
+              try
+              {
+                m_sinkContract->getDataItemsForPath(device, xpath, set, nullopt);
+              }
+              catch (exception &e)
+              {
+                LOG(warning) << "MqttService: Invalid xpath '" << *xpath <<
+                                "', defaulting to all data items";
+              }
+
+              if (set.empty())
+              {
+                LOG(warning) << "MqttService: Invalid xpath '" << *xpath << 
+                                "', defaulting to all data items";
+              }
+            }
+            
+            if (set.empty())
+            {
+              for (const auto &wdi : device->getDeviceDataItems())
+              {
+                const auto di = wdi.lock();
+                if (di)
+                  set.insert(di->getId());
+              }
             }
           }
           return filter->second;
@@ -199,6 +229,12 @@ namespace mtconnect {
 
         std::map<std::string, FilterSet> m_filters;
         std::map<std::string, std::shared_ptr<AsyncSample>> m_samplers;
+
+        bool m_retain {true};
+        MqttClient::QOS m_qos {MqttClient::QOS::at_least_once};
+        
+        // For XPath
+        
       };
     }  // namespace mqtt_sink
   }    // namespace sink

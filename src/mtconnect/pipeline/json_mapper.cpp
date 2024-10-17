@@ -137,6 +137,8 @@ namespace mtconnect::pipeline {
         }
         else
         {
+          if (m_source)
+            dataItem->setDataSource(*m_source);
           m_entities.push_back(obs);
           m_forward(std::move(obs));
         }
@@ -169,6 +171,7 @@ namespace mtconnect::pipeline {
     DevicePtr m_defaultDevice;
     optional<Timestamp> m_timestamp;
     optional<double> m_duration;
+    optional<string> m_source;
 
     EntityList m_entities;
     PipelineContextPtr m_pipelineContext;
@@ -884,11 +887,10 @@ namespace mtconnect::pipeline {
               }
               else
               {
-                // Otherwise we have a problem, we cannot consume content
-                // if we don't know the data item since we cannot handle tables
-                // and data sets.
-                LOG(warning) << "Cannot map properties without data item";
-                return false;
+                LOG(warning) << "Cannot map properties without data item, consuming erronous data";
+                ErrorHandler handler;
+                if (!handler(reader, buff))
+                  return false;
               }
               m_props.clear();
               m_dataItem.reset();
@@ -1014,6 +1016,7 @@ namespace mtconnect::pipeline {
   {
     static const auto GetParseError = rj::GetParseError_En;
 
+    auto source = entity->maybeGet<string>("source");
     auto json = std::dynamic_pointer_cast<JsonMessage>(entity);
     DevicePtr device = json->m_device.lock();
     auto &body = entity->getValue<std::string>();
@@ -1023,6 +1026,7 @@ namespace mtconnect::pipeline {
     reader.IterativeParseInit();
     ParserContext context(m_context);
     context.m_forward = [this](entity::EntityPtr &&entity) { next(std::move(entity)); };
+    context.m_source = source;
 
     TopLevelHandler handler(context);
     if (device)

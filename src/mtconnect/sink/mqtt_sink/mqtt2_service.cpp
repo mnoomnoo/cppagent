@@ -68,7 +68,12 @@ namespace mtconnect {
                     {configuration::MqttCert, string()},
                     {configuration::MqttClientId, string()},
                     {configuration::MqttUserName, string()},
-                    {configuration::MqttPassword, string()}});
+                    {configuration::MqttPassword, string()},
+                    {configuration::MqttPort, int()},
+                    {configuration::MqttXPath, string()},
+                    {configuration::MqttRetain, bool()},
+                    {configuration::MqttQOS, string()},
+                    {configuration::MqttHost, string()}});
         AddDefaultedOptions(
             config, m_options,
             {{configuration::MqttHost, "127.0.0.1"s},
@@ -80,7 +85,6 @@ namespace mtconnect {
              {configuration::MqttCurrentInterval, 10000ms},
              {configuration::MqttSampleInterval, 500ms},
              {configuration::MqttSampleCount, 1000},
-             {configuration::MqttPort, 1883},
              {configuration::MqttTls, false}});
 
         int maxTopicDepth {GetOption<int>(options, configuration::MqttMaxTopicDepth).value_or(7)};
@@ -95,6 +99,44 @@ namespace mtconnect {
         m_sampleInterval = *GetOption<Milliseconds>(m_options, configuration::MqttSampleInterval);
 
         m_sampleCount = *GetOption<int>(m_options, configuration::MqttSampleCount);
+
+        if (!HasOption(m_options, configuration::MqttPort))
+        {
+          if (HasOption(m_options, configuration::Port))
+          {
+            m_options[configuration::MqttPort] = m_options[configuration::Port];
+          }
+          else
+          {
+            m_options[configuration::MqttPort] = 1883;
+          }
+        }
+
+        if (!HasOption(m_options, configuration::MqttHost) &&
+            HasOption(m_options, configuration::Host))
+        {
+          m_options[configuration::MqttHost] = m_options[configuration::Host];
+        }
+
+        auto retain = GetOption<bool>(m_options, configuration::MqttRetain);
+        if (retain)
+          m_retain = *retain;
+
+        auto qoso = GetOption<string>(m_options, configuration::MqttQOS);
+
+        if (qoso)
+        {
+          auto qos = *qoso;
+          if (qos == "at_most_once")
+            m_qos = MqttClient::QOS::at_most_once;
+          else if (qos == "at_least_once")
+            m_qos = MqttClient::QOS::at_least_once;
+          else if (qos == "exactly_once")
+            m_qos = MqttClient::QOS::exactly_once;
+          else
+            LOG(warning) << "Invalid QOS for MQTT Client: " << qos
+                         << ", must be at_most_once, at_least_once, or exactly_once";
+        }
       }
 
       void Mqtt2Service::start()
@@ -185,10 +227,10 @@ namespace mtconnect {
           }
         }
 
-        auto seq = m_sinkContract->getCircularBuffer().getSequence();
+        auto seq = publishCurrent(boost::system::error_code {});
         for (auto &dev : m_sinkContract->getDevices())
         {
-          FilterSet filterSet = filterForDevice(dev);
+          FilterSet filterSet { filterForDevice(dev) };
           auto sampler =
               make_shared<AsyncSample>(m_strand, m_sinkContract->getCircularBuffer(),
                                        std::move(filterSet), m_sampleInterval, 600s, m_client, dev);
@@ -197,10 +239,8 @@ namespace mtconnect {
           sampler->observe(seq, [this](const std::string &id) {
             return m_sinkContract->getDataItemById(id).get();
           });
-          sampler->handlerCompleted();
+          publishSample(sampler);
         }
-
-        publishCurrent(boost::system::error_code {});
       }
 
       /// @brief publish sample when observations arrive.
@@ -230,32 +270,37 @@ namespace mtconnect {
                                      m_sinkContract->getCircularBuffer().getBufferSize(), end,
                                      firstSeq, lastSeq, *observations, false);
 
-        m_client->asyncPublish(topic, doc, [sampler, topic](std::error_code ec) {
-          if (!ec)
-          {
-            sampler->handlerCompleted();
-          }
-          else
-          {
-            LOG(warning) << "Async publish failed for " << topic << ": " << ec.message();
-          }
-        });
+        m_client->asyncPublish(
+            topic, doc,
+            [sampler, topic](std::error_code ec) {
+              if (!ec)
+              {
+                sampler->handlerCompleted();
+              }
+              else
+              {
+                LOG(warning) << "Async publish failed for " << topic << ": " << ec.message();
+              }
+            },
+            m_retain, m_qos);
 
         return end;
       }
 
-      void Mqtt2Service::publishCurrent(boost::system::error_code ec)
+      SequenceNumber_t Mqtt2Service::publishCurrent(boost::system::error_code ec)
       {
+        SequenceNumber_t firstSeq, seq = 0;
+
         if (ec)
         {
           LOG(warning) << "Mqtt2Service::publishCurrent: " << ec.message();
-          return;
+          return 0;
         }
 
         if (!m_client->isRunning() || !m_client->isConnected())
         {
           LOG(warning) << "Mqtt2Service::publishCurrent: client stopped";
-          return;
+          return 0;
         }
 
         for (auto &device : m_sinkContract->getDevices())
@@ -264,7 +309,6 @@ namespace mtconnect {
           LOG(debug) << "Publishing current for: " << topic;
 
           ObservationList observations;
-          SequenceNumber_t firstSeq, seq;
           auto filterSet = filterForDevice(device);
 
           {
@@ -281,13 +325,15 @@ namespace mtconnect {
                                             m_sinkContract->getCircularBuffer().getBufferSize(),
                                             seq, firstSeq, seq - 1, observations);
 
-          m_client->publish(topic, doc);
+          m_client->publish(topic, doc, m_retain, m_qos);
         }
 
         using std::placeholders::_1;
         m_currentTimer.expires_after(m_currentInterval);
         m_currentTimer.async_wait(boost::asio::bind_executor(
             m_strand, boost::bind(&Mqtt2Service::publishCurrent, this, _1)));
+
+        return seq;
       }
 
       bool Mqtt2Service::publish(observation::ObservationPtr &observation)
@@ -307,7 +353,7 @@ namespace mtconnect {
         buffer << doc;
 
         if (m_client)
-          m_client->publish(topic, buffer.str());
+          m_client->publish(topic, buffer.str(), m_retain, m_qos);
 
         return true;
       }
@@ -325,13 +371,14 @@ namespace mtconnect {
 
         LOG(debug) << "Publishing Asset to topic: " << topic;
 
-        auto doc = m_jsonPrinter->print(asset);
-
+        asset::AssetList list {asset};
+        auto doc = m_printer->printAssets(
+            m_instanceId, uint32_t(m_sinkContract->getAssetStorage()->getMaxAssets()), 1, list);
         stringstream buffer;
         buffer << doc;
 
         if (m_client)
-          m_client->publish(topic, buffer.str());
+          m_client->publish(topic, buffer.str(), m_retain, m_qos);
 
         return true;
       }

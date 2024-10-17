@@ -906,31 +906,29 @@ namespace mtconnect::configuration {
 
   void parseUrl(ConfigOptions &options)
   {
-    string host, protocol, path;
+    using namespace mtconnect::url;
     auto url = *GetOption<string>(options, configuration::Url);
 
-    boost::regex pat("^([^:]+)://([^:/]+)(:[0-9]+)?(/?.+)");
-    boost::match_results<string::const_iterator> match;
-    if (boost::regex_match(url, match, pat))
+    auto parsed = Url::parse(url);
+    options[configuration::Protocol] = parsed.m_protocol;
+    
+    auto host = parsed.getHost();
+    if (host.empty())
     {
-      if (match[1].matched)
-        options[configuration::Protocol] = string(match[1].first, match[1].second);
-      if (match[2].matched)
-        options[configuration::Host] = string(match[2].first, match[2].second);
-      if (match[3].matched)
-      {
-        try
-        {
-          options[configuration::Port] =
-              boost::lexical_cast<int>(string(match[3].first + 1, match[3].second).c_str());
-        }
-        catch (boost::bad_lexical_cast &e)
-        {
-          LOG(error) << "Cannot intrepret the port for " << match[3] << ": " << e.what();
-        }
-      }
-      if (match[4].matched)
-        options[configuration::Topics] = StringList {string(match[4].first, match[4].second)};
+      LOG(fatal) << "Malformed URL in configuration file: '" << url << "', exiting";
+      exit(1);
+    }
+    options[configuration::Host] = host;
+    
+    if (parsed.m_port)
+      options[configuration::Port] = parsed.getPort();
+    if (parsed.m_path != "/")
+    {
+      StringList list;
+      string topics = parsed.m_path.substr(1, string::npos);
+      boost::split(list, topics, boost::is_any_of(":"),
+                   boost::token_compress_on);
+      options[configuration::Topics] = list;
     }
   }
 
@@ -950,10 +948,16 @@ namespace mtconnect::configuration {
         ConfigOptions adapterOptions = options;
 
         GetOptions(block.second, adapterOptions, options);
+        // Erase the host and port so they can be properly defaulted.
+        adapterOptions.erase(configuration::Host);
+        adapterOptions.erase(configuration::Port);
+
         AddOptions(block.second, adapterOptions,
                    {{configuration::Url, string()},
                     {configuration::Device, string()},
                     {configuration::UUID, string()},
+                    {configuration::Host, string()},
+                    {configuration::Port, int32_t()},
                     {configuration::Heartbeat, std::chrono::milliseconds()},
                     {configuration::Uuid, string()}});
 
@@ -973,7 +977,7 @@ namespace mtconnect::configuration {
           device = getDefaultDevice();
           if (device)
           {
-            deviceName = *device->getComponentName();
+            deviceName = *device->getUuid();
             adapterOptions[configuration::Device] = deviceName;
             LOG(info) << "Assigning default device " << deviceName << " to adapter";
           }
@@ -990,9 +994,7 @@ namespace mtconnect::configuration {
         else if (auto uuid = GetOption<string>(adapterOptions, configuration::UUID))
         {
           // Set the UUID of the device
-          auto oldUuid = *device->getUuid();
-          device->setUuid(*uuid);
-          m_agent->deviceChanged(device, oldUuid, *device->getComponentName());
+          m_agent->deviceChanged(device, *uuid);
         }
 
         auto preserve = GetOption<bool>(adapterOptions, configuration::PreserveUUID);

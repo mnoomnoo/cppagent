@@ -42,9 +42,6 @@ namespace mtconnect::source::adapter::mqtt_adapter {
 
     void build(const ConfigOptions &options) override;
     Handler *m_handler {nullptr};
-
-  protected:
-    ConfigOptions m_options;
   };
 
   /// @brief An Mqtt adapter to connnect to another Agent and replicate data
@@ -99,7 +96,6 @@ namespace mtconnect::source::adapter::mqtt_adapter {
     bool m_running;
 
     std::string m_host;
-
     unsigned int m_port;
 
     MqttPipeline m_pipeline;
