@@ -16,7 +16,7 @@
 name: Build Docker image
 
 env:
-  PLATFORMS: linux/amd64,linux/arm64
+  PLATFORMS: linux/amd64 # ,linux/arm64
 
 # when to run workflow
 on:
@@ -32,6 +32,9 @@ on:
 jobs:
   # this workflow contains a single job called "build"
   build:
+    # Do not build if it is an RC build
+    if: ${{ ! contains(github.ref_name, 'RC') }}
+    
     # the type of runner that the job will run on
     runs-on: ubuntu-latest
     strategy:
