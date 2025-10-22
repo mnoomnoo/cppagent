@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,7 @@
 
 #include <chrono>
 #include <date/date.h>
+#include <date/tz.h>
 #include <filesystem>
 #include <map>
 #include <mtconnect/version.h>
@@ -163,7 +164,7 @@ namespace mtconnect {
   /// @brief Convert text to upper case
   /// @param[in,out] text text
   /// @return upper-case of text as string
-  inline std::string toUpperCase(std::string &text)
+  constexpr std::string &toUpperCase(std::string &text)
   {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return std::toupper(c); });
@@ -174,7 +175,7 @@ namespace mtconnect {
   /// @brief Simple check if a number as a string is negative
   /// @param s the numbeer
   /// @return `true` if positive
-  inline bool isNonNegativeInteger(const std::string &s)
+  constexpr bool isNonNegativeInteger(const std::string &s)
   {
     for (const char c : s)
     {
@@ -188,7 +189,7 @@ namespace mtconnect {
   /// @brief Checks if a string is a valid integer
   /// @param s the string
   /// @return `true` if is `[+-]\d+`
-  inline bool isInteger(const std::string &s)
+  constexpr bool isInteger(const std::string &s)
   {
     auto iter = s.cbegin();
     if (*iter == '-' || *iter == '+')
@@ -218,7 +219,12 @@ namespace mtconnect {
     using namespace std;
     using namespace std::chrono;
     constexpr char ISO_8601_FMT[] = "%Y-%m-%dT%H:%M:%SZ";
-
+#ifdef _WINDOWS
+    namespace tzchrono = std::chrono;
+#else
+    namespace tzchrono = date;
+#endif
+    
     switch (format)
     {
       case HUM_READ:
@@ -228,12 +234,11 @@ namespace mtconnect {
       case GMT_UV_SEC:
         return date::format(ISO_8601_FMT, date::floor<microseconds>(timePoint));
       case LOCAL:
-        auto time = system_clock::to_time_t(timePoint);
-        struct tm timeinfo = {0};
-        mt_localtime(&time, &timeinfo);
-        char timestamp[64] = {0};
-        strftime(timestamp, 50u, "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
-        return timestamp;
+      {
+        auto zone = tzchrono::current_zone();
+        auto zt = date::zoned_time(zone, timePoint);
+        return date::format("%Y-%m-%dT%H:%M:%S%z", zt);
+      }
     }
 
     return "";
@@ -685,25 +690,27 @@ namespace mtconnect {
   ///
   /// @param[in,out] start starting iterator
   /// @param[in,out] end ending iterator
-  inline void capitalize(std::string::iterator start, std::string::iterator end)
+  inline void capitalize(std::ostringstream &camel, std::string::const_iterator start,
+                         std::string::const_iterator end)
   {
     using namespace std;
 
     // Exceptions to the rule
-    const static std::unordered_map<std::string, std::string> exceptions = {
+    const static std::unordered_map<std::string_view, std::string_view> exceptions = {
         {"AC", "AC"}, {"DC", "DC"},   {"PH", "PH"},
         {"IP", "IP"}, {"URI", "URI"}, {"MTCONNECT", "MTConnect"}};
 
-    const auto &w = exceptions.find(std::string(start, end));
+    std::string_view s(&*start, distance(start, end));
+    const auto &w = exceptions.find(s);
+    ostream_iterator<char> out(camel);
     if (w != exceptions.end())
     {
-      copy(w->second.begin(), w->second.end(), start);
+      copy(w->second.begin(), w->second.end(), out);
     }
     else
     {
-      *start = ::toupper(*start);
-      start++;
-      transform(start, end, start, ::tolower);
+      camel << static_cast<char>(::toupper(*start));
+      transform(start + 1, end, out, ::tolower);
     }
   }
 
@@ -721,34 +728,33 @@ namespace mtconnect {
     if (type.empty())
       return "";
 
-    string camel;
+    ostringstream camel;
+
+    auto start = type.begin();
+    decltype(start) end;
+
     auto colon = type.find(':');
 
     if (colon != string::npos)
     {
       prefix = type.substr(0ul, colon);
-      camel = type.substr(colon + 1ul);
+      start += colon + 1;
     }
-    else
-      camel = type;
-
-    auto start = camel.begin();
-    decltype(start) end;
 
     bool done;
     do
     {
-      end = find(start, camel.end(), '_');
-      capitalize(start, end);
-      done = end == camel.end();
+      end = find(start, type.end(), '_');
+      if (start != end)
+        capitalize(camel, start, end);
+      done = end == type.end();
       if (!done)
       {
-        camel.erase(end);
-        start = end;
+        start = end + 1;
       }
     } while (!done);
 
-    return camel;
+    return camel.str();
   }
 
   /// @brief parse a string timestamp to a `Timestamp`
@@ -756,14 +762,9 @@ namespace mtconnect {
   /// @return converted `Timestamp`
   inline Timestamp parseTimestamp(const std::string &timestamp)
   {
-    using namespace date;
-    using namespace std::chrono;
-    using namespace std::chrono_literals;
-    using namespace date::literals;
-
     Timestamp ts;
     std::istringstream in(timestamp);
-    in >> std::setw(6) >> parse("%FT%T", ts);
+    in >> std::setw(6) >> date::parse("%FT%T", ts);
     if (!in.good())
     {
       ts = std::chrono::system_clock::now();
@@ -818,11 +819,12 @@ namespace mtconnect {
   /// @param[in] sha the sha1 namespace to use as context
   /// @param[in] id the id to use transform
   /// @returns Returns the first 16 characters of the  base 64 encoded sha1
-  inline std::string makeUniqueId(const ::boost::uuids::detail::sha1 &sha, const std::string &id)
+  inline std::string makeUniqueId(const ::boost::uuids::detail::sha1 &contextSha, const std::string &id)
   {
     using namespace std;
+    using namespace boost::uuids::detail;
 
-    ::boost::uuids::detail::sha1 sha1(sha);
+    sha1 sha(contextSha);
 
     constexpr string_view startc("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_");
     constexpr auto isIDStartChar = [](unsigned char c) -> bool { return isalpha(c) || c == '_'; };
@@ -830,12 +832,14 @@ namespace mtconnect {
       return isIDStartChar(c) || isdigit(c) || c == '.' || c == '-';
     };
 
-    sha1.process_bytes(id.data(), id.length());
-    unsigned int digest[5];
-    sha1.get_digest(digest);
+    sha.process_bytes(id.data(), id.length());
+    sha1::digest_type  digest;
+    sha.get_digest(digest);
 
+     auto data = (unsigned int *) digest;
+    
     string s(32, ' ');
-    auto len = boost::beast::detail::base64::encode(s.data(), digest, sizeof(digest));
+    auto len = boost::beast::detail::base64::encode(s.data(), data, sizeof(digest));
 
     s.erase(len - 1);
     s.erase(std::remove_if(++(s.begin()), s.end(), not_fn(isIDChar)), s.end());

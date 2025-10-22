@@ -189,6 +189,7 @@ set(AGENT_SOURCES
         "${SOURCE_DIR}/pipeline/topic_mapper.hpp"
         "${SOURCE_DIR}/pipeline/transform.hpp"
         "${SOURCE_DIR}/pipeline/upcase_value.hpp"
+        "${SOURCE_DIR}/pipeline/correct_timestamp.hpp"       
         "${SOURCE_DIR}/pipeline/validator.hpp"       
    
 # src/pipeline SOURCE_FILES_ONLY
@@ -259,6 +260,7 @@ set(AGENT_SOURCES
 # src/sink/rest_sink HEADER_FILE_ONLY
         
         "${SOURCE_DIR}/sink/rest_sink/cached_file.hpp"
+        "${SOURCE_DIR}/sink/rest_sink/error.hpp"
         "${SOURCE_DIR}/sink/rest_sink/file_cache.hpp"
         "${SOURCE_DIR}/sink/rest_sink/parameter.hpp"
         "${SOURCE_DIR}/sink/rest_sink/request.hpp"
@@ -273,6 +275,7 @@ set(AGENT_SOURCES
   
 # src/sink/rest_sink SOURCE_FILES_ONLY
 
+        "${SOURCE_DIR}/sink/rest_sink/error.cpp"
         "${SOURCE_DIR}/sink/rest_sink/file_cache.cpp"
         "${SOURCE_DIR}/sink/rest_sink/rest_service.cpp"
         "${SOURCE_DIR}/sink/rest_sink/server.cpp"

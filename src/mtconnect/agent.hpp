@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -214,6 +214,10 @@ namespace mtconnect {
     /// @return The MTConnect schema version as a string
     const auto &getSchemaVersion() const { return m_schemaVersion; }
 
+    /// @brief Get the validation state of the agent
+    /// @returns the validation state of the agent
+    bool isValidating() const { return m_validation; }
+
     /// @brief Get the integer schema version based on configuration.
     /// @returns the schema version as an integer [major * 100 + minor] as a 32bit integer.
     const auto getIntSchemaVersion() const { return m_intSchemaVersion; }
@@ -374,9 +378,10 @@ namespace mtconnect {
     bool removeAllAssets(const std::optional<std::string> device,
                          const std::optional<std::string> type, const std::optional<Timestamp> time,
                          asset::AssetList &list);
-    /// @brief Send asset removed observation when an asset is removed.
+    /// @brief Send asset changed and added observation when an asset is removed.
     ///
-    /// Also sets asset changed to `UNAVAILABLE` if the asset removed asset was the last changed.
+    /// Also sets asset changed and added  to `UNAVAILABLE` if the asset removed asset was the last
+    /// changed.
     ///
     /// @param device The device related to the asset
     /// @param asset The asset
@@ -589,6 +594,7 @@ namespace mtconnect {
       }
     }
     int32_t getSchemaVersion() const override { return m_agent->getIntSchemaVersion(); }
+    bool isValidating() const override { return m_agent->isValidating(); }
     void deliverObservation(observation::ObservationPtr obs) override
     {
       m_agent->receiveObservation(obs);

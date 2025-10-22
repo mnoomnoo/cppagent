@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,13 +82,13 @@ namespace mtconnect {
                            {configuration::RealTime, false},
                            {configuration::RelativeTime, false}});
       loadTopics(block, m_options);
-      
+
       if (!HasOption(m_options, configuration::MqttHost) &&
           HasOption(m_options, configuration::Host))
       {
         m_options[configuration::MqttHost] = m_options[configuration::Host];
       }
-      
+
       if (!HasOption(m_options, configuration::MqttPort))
       {
         if (HasOption(m_options, configuration::Port))
@@ -100,7 +100,7 @@ namespace mtconnect {
           m_options[configuration::MqttPort] = 1883;
         }
       }
-      
+
       m_handler = m_pipeline.makeHandler();
       auto clientHandler = make_unique<ClientHandler>();
 
@@ -147,9 +147,9 @@ namespace mtconnect {
         m_client = make_shared<mtconnect::mqtt_client::MqttTcpClient>(m_ioContext, m_options,
                                                                       std::move(clientHandler));
       }
-      
+
       m_name = m_client->getUrl();
-            
+
       if (auto ident = GetOption<string>(m_options, configuration::AdapterIdentity))
       {
         m_identity = *ident;
@@ -157,7 +157,7 @@ namespace mtconnect {
       else
       {
         stringstream identity;
-        
+
         identity << m_name;
         auto topics = GetOption<StringList>(m_options, configuration::Topics);
         if (topics)
@@ -166,15 +166,7 @@ namespace mtconnect {
             identity << s;
         }
 
-        boost::uuids::detail::sha1 sha1;
-        sha1.process_bytes(identity.str().c_str(), identity.str().length());
-        boost::uuids::detail::sha1::digest_type digest;
-        sha1.get_digest(digest);
-        
-        identity.str("");
-        identity << std::hex << digest[0] << digest[1] << digest[2];
-        m_identity = string("_") + (identity.str()).substr(0, 10);
-
+        m_identity = CreateIdentityHash(identity.str());
         m_options[configuration::AdapterIdentity] = m_identity;
       }
 

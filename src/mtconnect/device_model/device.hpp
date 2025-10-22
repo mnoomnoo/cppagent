@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -315,6 +315,7 @@ namespace mtconnect {
       DataItemPtr getAvailability() const { return m_availability; }
       DataItemPtr getAssetChanged() const { return m_assetChanged; }
       DataItemPtr getAssetRemoved() const { return m_assetRemoved; }
+      DataItemPtr getAssetAdded() const { return m_assetAdded; }
       DataItemPtr getAssetCount() const { return m_assetCount; }
       ///@}
 
@@ -351,6 +352,7 @@ namespace mtconnect {
       DataItemPtr m_availability;
       DataItemPtr m_assetChanged;
       DataItemPtr m_assetRemoved;
+      DataItemPtr m_assetAdded;
       DataItemPtr m_assetCount;
 
       DataItemIndex m_dataItems;

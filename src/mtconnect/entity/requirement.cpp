@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -263,7 +263,7 @@ namespace mtconnect {
       void operator()(const int64_t arg, string &v) { v = to_string(arg); }
       void operator()(const int64_t arg, bool &v) { v = arg != 0; }
       void operator()(const int64_t arg, double &v) { v = double(arg); }
-      void operator()(const int64_t arg, Vector &v) { v.emplace_back(arg); }
+      void operator()(const int64_t arg, Vector &v) { v.emplace_back(double(arg)); }
       void operator()(const int64_t arg, Timestamp &v)
       {
         v = std::chrono::system_clock::from_time_t(arg);
@@ -311,7 +311,7 @@ namespace mtconnect {
       void operator()(const Timestamp &arg, double &v) { v = arg.time_since_epoch().count(); }
       void operator()(const Timestamp &arg, Vector &v)
       {
-        v.emplace_back(arg.time_since_epoch().count());
+        v.emplace_back(double(arg.time_since_epoch().count()));
       }
       template <typename T>
       void operator()(const Timestamp &arg, T &)

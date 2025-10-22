@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,7 @@ namespace mtconnect::printer {
 
     std::string printErrors(
         const uint64_t instanceId, const unsigned int bufferSize, const uint64_t nextSeq,
-        const ProtoErrorList &list, bool pretty = false,
+        const entity::EntityList &list, bool pretty = false,
         const std::optional<std::string> requestId = std::nullopt) const override;
 
     std::string printProbe(

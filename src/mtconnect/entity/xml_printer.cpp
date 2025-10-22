@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@
 #include <unordered_map>
 
 #include <libxml/xmlwriter.h>
+#include <libxml/entities.h>
 
 #include "mtconnect/logging.hpp"
 #include "mtconnect/printer/xml_printer_helper.hpp"
@@ -102,13 +103,17 @@ namespace mtconnect {
                           [&writer, &attrs](const double &d) {
                             addSimpleElement(writer, "Entry", format(d), attrs);
                           },
-                          [&writer, &attrs](const DataSet &row) {
+                          [&writer, &attrs](const TableRow &row) {
                             // Table
                             AutoElement ele(writer, "Entry");
                             addAttributes(writer, attrs);
                             for (auto &c : row)
                             {
                               map<string, string> attrs = {{"key", c.m_key}};
+                              if (c.m_removed)
+                              {
+                                attrs["removed"] = "true";
+                              }
                               visit(overloaded {
                                         [&writer, &attrs](const string &s) {
                                           addSimpleElement(writer, "Cell", s, attrs);

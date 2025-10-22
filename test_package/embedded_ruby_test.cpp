@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -92,6 +92,7 @@ namespace {
     void deliverDevice(DevicePtr) override {}
     void deliverAssetCommand(entity::EntityPtr c) override { m_command = c; }
     int32_t getSchemaVersion() const override { return IntDefaultSchemaVersion(); }
+    bool isValidating() const override { return false; }
     void deliverCommand(entity::EntityPtr c) override { m_command = c; }
     void deliverConnectStatus(entity::EntityPtr, const StringList &, bool) override {}
     void sourceFailed(const std::string &id) override {}
@@ -240,13 +241,13 @@ namespace {
     const DataSet &ds = cent1->getValue<DataSet>();
     ASSERT_EQ(2, ds.size());
 
-    const DataSet &row1 = ds.get<DataSet>("row1");
+    const auto &row1 = ds.get<TableRow>("row1");
     ASSERT_EQ(2, row1.size());
 
     ASSERT_EQ("text1", row1.get<string>("string"));
     ASSERT_NEAR(1.0, row1.get<double>("float"), 0.000001);
 
-    const DataSet &row2 = ds.get<DataSet>("row2");
+    const auto &row2 = ds.get<TableRow>("row2");
     ASSERT_EQ(2, row2.size());
 
     ASSERT_EQ("text2", row2.get<string>("string"));

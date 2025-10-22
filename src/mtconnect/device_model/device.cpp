@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,6 +142,8 @@ namespace mtconnect {
         m_availability = dataItem;
       else if (dataItem->getType() == "ASSET_CHANGED")
         m_assetChanged = dataItem;
+      else if (dataItem->getType() == "ASSET_ADDED")
+        m_assetAdded = dataItem;
       else if (dataItem->getType() == "ASSET_REMOVED")
         m_assetRemoved = dataItem;
       else if (dataItem->getType() == "ASSET_COUNT")

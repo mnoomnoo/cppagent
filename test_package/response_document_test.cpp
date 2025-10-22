@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,6 +63,7 @@ public:
   void deliverConnectStatus(entity::EntityPtr, const StringList &, bool) override {}
   void sourceFailed(const std::string &id) override {}
   const ObservationPtr checkDuplicate(const ObservationPtr &obs) const override { return obs; }
+  bool isValidating() const override { return false; }
 
   DevicePtr m_device;
 };
@@ -289,7 +290,7 @@ TEST_F(ResponseDocumentTest, should_parse_tables)
   ASSERT_EQ("W1", dse->m_key);
   ASSERT_FALSE(dse->m_removed);
 
-  const auto &v1 = get<DataSet>(dse->m_value);
+  const auto &v1 = get<TableRow>(dse->m_value);
   ASSERT_EQ(3, v1.size());
 
   auto v1i = v1.begin();
@@ -306,7 +307,7 @@ TEST_F(ResponseDocumentTest, should_parse_tables)
   ASSERT_EQ("W2", dse->m_key);
   ASSERT_FALSE(dse->m_removed);
 
-  const auto &v2 = get<DataSet>(dse->m_value);
+  const auto &v2 = get<TableRow>(dse->m_value);
   ASSERT_EQ(3, v2.size());
 
   auto v2i = v2.begin();
@@ -323,7 +324,7 @@ TEST_F(ResponseDocumentTest, should_parse_tables)
   ASSERT_EQ("W3", dse->m_key);
   ASSERT_FALSE(dse->m_removed);
 
-  const auto &v3 = get<DataSet>(dse->m_value);
+  const auto &v3 = get<TableRow>(dse->m_value);
   ASSERT_EQ(3, v3.size());
 
   auto v3i = v3.begin();

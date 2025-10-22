@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -358,7 +358,7 @@ namespace mtconnect {
     if (m_intSchemaVersion >= SCHEMA_VERSION(2, 2))
       asset->addHash();
 
-    m_assetStorage->addAsset(asset);
+    auto old = m_assetStorage->addAsset(asset);
 
     for (auto &sink : m_sinks)
       sink->publish(asset);
@@ -366,10 +366,25 @@ namespace mtconnect {
     if (device)
     {
       DataItemPtr di;
+      auto added = device->getAssetAdded();
       if (asset->isRemoved())
         di = device->getAssetRemoved();
-      else
+      else if (old || !added)
+      {
         di = device->getAssetChanged();
+        /// If we have changed the asset that is currently recorded as added. Make added
+        /// unavailable.
+        if (added)
+        {
+          auto last = getLatest(added);
+          if (last && asset->getAssetId() == last->getValue<string>())
+          {
+            m_loopback->receive(added, {{"assetType", asset->getName()}, {"VALUE", g_unavailable}});
+          }
+        }
+      }
+      else if (added)
+        di = added;
       if (di)
       {
         entity::Properties props {{"assetType", asset->getName()}, {"VALUE", asset->getAssetId()}};
@@ -462,7 +477,7 @@ namespace mtconnect {
       return;
     }
 
-    auto callback = [=](config::AsyncContext &context) {
+    auto callback = [=, this](config::AsyncContext &context) {
       try
       {
         bool changed = false;
@@ -589,7 +604,7 @@ namespace mtconnect {
       createUniqueIds(device);
 
       LOG(info) << "Checking if device " << *uuid << " has changed";
-      if (*device != *oldDev)
+      if (device->different(*oldDev))
       {
         LOG(info) << "Device " << *uuid << " changed, updating model";
 
@@ -763,12 +778,24 @@ namespace mtconnect {
       {
         m_loopback->receive(dev->getAssetRemoved(),
                             {{"assetType", asset->getName()}, {"VALUE", asset->getAssetId()}});
-
-        auto changed = dev->getAssetChanged();
-        auto last = getLatest(changed);
-        if (last && asset->getAssetId() == last->getValue<string>())
         {
-          m_loopback->receive(changed, {{"assetType", asset->getName()}, {"VALUE", g_unavailable}});
+          auto changed = dev->getAssetChanged();
+          auto last = getLatest(changed);
+          if (last && asset->getAssetId() == last->getValue<string>())
+          {
+            m_loopback->receive(changed,
+                                {{"assetType", asset->getName()}, {"VALUE", g_unavailable}});
+          }
+        }
+
+        auto added = dev->getAssetAdded();
+        if (added)
+        {
+          auto last = getLatest(added);
+          if (last && asset->getAssetId() == last->getValue<string>())
+          {
+            m_loopback->receive(added, {{"assetType", asset->getName()}, {"VALUE", g_unavailable}});
+          }
         }
       }
     }
@@ -899,6 +926,18 @@ namespace mtconnect {
       entity::ErrorList errors;
       auto di = DataItem::make({{"type", "ASSET_REMOVED"s},
                                 {"id", device->getId() + "_asset_rem"},
+                                {"category", "EVENT"s}},
+                               errors);
+      device->addDataItem(di, errors);
+    }
+
+    if (!device->getAssetAdded() && m_intSchemaVersion >= SCHEMA_VERSION(2, 6))
+    {
+      // Create asset removed data item and add it to the device.
+      entity::ErrorList errors;
+      auto di = DataItem::make({{"type", "ASSET_ADDED"s},
+                                {"id", device->getId() + "_asset_add"},
+                                {"discrete", true},
                                 {"category", "EVENT"s}},
                                errors);
       device->addDataItem(di, errors);

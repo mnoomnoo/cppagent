@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -144,7 +144,7 @@ TEST_F(AgentTest, FailWithDuplicateDeviceUUID)
   ASSERT_THROW(agent->initialize(context), std::runtime_error);
 }
 
-TEST_F(AgentTest, BadDevices)
+TEST_F(AgentTest, should_return_error_for_unknown_device)
 {
   {
     PARSE_XML_RESPONSE("/LinuxCN/probe");
@@ -155,7 +155,23 @@ TEST_F(AgentTest, BadDevices)
   }
 }
 
-TEST_F(AgentTest, BadXPath)
+TEST_F(AgentTest, should_return_2_6_error_for_unknown_device)
+{
+  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false,
+                                              true, {{configuration::Validation, false}});
+
+  {
+    PARSE_XML_RESPONSE("/LinuxCN/probe");
+    string message = (string) "Could not find the device 'LinuxCN'";
+    ASSERT_XML_PATH_EQUAL(doc, "//m:NoDevice@errorCode", "NO_DEVICE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:NoDevice/m:ErrorMessage", message.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:NoDevice/m:Request", "MTConnectDevices");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:NoDevice/m:URI", "/LinuxCN/probe");
+    ASSERT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
+  }
+}
+
+TEST_F(AgentTest, should_return_error_when_path_cannot_be_parsed)
 {
   {
     QueryMap query {{"path", "//////Linear"}};
@@ -183,7 +199,42 @@ TEST_F(AgentTest, BadXPath)
   }
 }
 
-TEST_F(AgentTest, GoodPath)
+TEST_F(AgentTest, should_return_2_6_error_when_path_cannot_be_parsed)
+{
+  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false, true,
+                                 {{configuration::Validation, false}});
+
+  {
+    QueryMap query {{"path", "//////Linear"}};
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    string message = (string) "The path could not be parsed. Invalid syntax: //////Linear";
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath@errorCode", "INVALID_XPATH");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath/m:ErrorMessage", message.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath/m:URI", "/current?path=//////Linear");
+  }
+
+  {
+    QueryMap query {{"path", "//Axes?//Linear"}};
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    string message = (string) "The path could not be parsed. Invalid syntax: //Axes?//Linear";
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath@errorCode", "INVALID_XPATH");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath/m:ErrorMessage", message.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath/m:URI", "/current?path=//Axes?//Linear");
+  }
+
+  {
+    QueryMap query {{"path", "//Devices/Device[@name=\"I_DON'T_EXIST\""}};
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    string message = (string)
+    "The path could not be parsed. Invalid syntax: //Devices/Device[@name=\"I_DON'T_EXIST\"";
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath@errorCode", "INVALID_XPATH");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath/m:ErrorMessage", message.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidXPath/m:URI",
+                          "/current?path=//Devices/Device[@name=\"I_DON'T_EXIST\"");
+  }
+}
+
+TEST_F(AgentTest, should_handle_a_correct_path)
 {
   {
     QueryMap query {{"path", "//Power"}};
@@ -205,12 +256,12 @@ TEST_F(AgentTest, GoodPath)
   }
 }
 
-TEST_F(AgentTest, BadPath)
+TEST_F(AgentTest, should_report_an_invalid_uri)
 {
   using namespace rest_sink;
   {
     PARSE_XML_RESPONSE("/bad_path");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_REQUEST");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_URI");
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error", "0.0.0.0: Cannot find handler for: GET /bad_path");
     EXPECT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
     EXPECT_FALSE(m_agentTestHelper->m_dispatched);
@@ -218,7 +269,7 @@ TEST_F(AgentTest, BadPath)
 
   {
     PARSE_XML_RESPONSE("/bad/path/");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_REQUEST");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_URI");
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error", "0.0.0.0: Cannot find handler for: GET /bad/path/");
     EXPECT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
     EXPECT_FALSE(m_agentTestHelper->m_dispatched);
@@ -226,7 +277,7 @@ TEST_F(AgentTest, BadPath)
 
   {
     PARSE_XML_RESPONSE("/LinuxCNC/current/blah");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_REQUEST");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_URI");
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error",
                           "0.0.0.0: Cannot find handler for: GET /LinuxCNC/current/blah");
     EXPECT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
@@ -234,7 +285,47 @@ TEST_F(AgentTest, BadPath)
   }
 }
 
-TEST_F(AgentTest, CurrentAt)
+TEST_F(AgentTest, should_report_a_2_6_invalid_uri)
+{
+  using namespace rest_sink;
+
+  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false, true,
+                                 {{configuration::Validation, false}});
+
+  {
+    PARSE_XML_RESPONSE("/bad_path");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI@errorCode", "INVALID_URI");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:ErrorMessage",
+                          "0.0.0.0: Cannot find handler for: GET /bad_path");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:URI", "/bad_path");
+    EXPECT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
+    EXPECT_FALSE(m_agentTestHelper->m_dispatched);
+  }
+
+  {
+    PARSE_XML_RESPONSE("/bad/path/");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI@errorCode", "INVALID_URI");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:ErrorMessage",
+                          "0.0.0.0: Cannot find handler for: GET /bad/path/");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:URI", "/bad/path/");
+
+    EXPECT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
+    EXPECT_FALSE(m_agentTestHelper->m_dispatched);
+  }
+
+  {
+    PARSE_XML_RESPONSE("/LinuxCNC/current/blah");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI@errorCode", "INVALID_URI");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:ErrorMessage",
+                          "0.0.0.0: Cannot find handler for: GET /LinuxCNC/current/blah");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:URI", "/LinuxCNC/current/blah");
+
+    EXPECT_EQ(status::not_found, m_agentTestHelper->session()->m_code);
+    EXPECT_FALSE(m_agentTestHelper->m_dispatched);
+  }
+}
+
+TEST_F(AgentTest, should_handle_current_at)
 {
   QueryMap query;
   PARSE_XML_RESPONSE_QUERY("/current", query);
@@ -303,7 +394,7 @@ TEST_F(AgentTest, CurrentAt)
   }
 }
 
-TEST_F(AgentTest, CurrentAt64)
+TEST_F(AgentTest, should_handle_64_bit_current_at)
 {
   QueryMap query;
 
@@ -335,7 +426,7 @@ TEST_F(AgentTest, CurrentAt64)
   }
 }
 
-TEST_F(AgentTest, CurrentAtOutOfRange)
+TEST_F(AgentTest, should_report_out_of_range_for_current_at)
 {
   QueryMap query;
 
@@ -373,9 +464,63 @@ TEST_F(AgentTest, CurrentAtOutOfRange)
   }
 }
 
+TEST_F(AgentTest, should_report_2_6_out_of_range_for_current_at)
+{
+  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false, true,
+                                 {{configuration::Validation, false}});
+
+  QueryMap query;
+
+  addAdapter();
+
+  // Get the current position
+  char line[80] = {0};
+
+  // Add many events
+  for (int i = 1; i <= 200; i++)
+  {
+    sprintf(line, "2021-02-01T12:00:00Z|line|%d", i);
+    m_agentTestHelper->m_adapter->processData(line);
+  }
+
+  auto &circ = m_agentTestHelper->getAgent()->getCircularBuffer();
+  auto seq = circ.getSequence();
+  auto max = seq - 1;
+  {
+    auto s = to_string(seq);
+    query["at"] = s;
+    sprintf(line, "'at' must be less than %d", int32_t(seq));
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", line);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:Request", "MTConnectStreams");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", ("/current?at=" + s).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "at");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", s.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum", "1");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum", to_string(max).c_str());
+  }
+
+  seq = circ.getFirstSequence() - 1;
+
+  {
+    query["at"] = to_string(seq);
+    sprintf(line, "'at' must be greater than 0");
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", line);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:Request", "MTConnectStreams");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/current?at=0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "at");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum", "1");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum", to_string(max).c_str());
+  }
+}
+
 TEST_F(AgentTest, AddAdapter) { addAdapter(); }
 
-TEST_F(AgentTest, FileDownload)
+TEST_F(AgentTest, should_download_file)
 {
   QueryMap query;
 
@@ -394,7 +539,7 @@ TEST_F(AgentTest, FileDownload)
               string::npos);
 }
 
-TEST_F(AgentTest, FailedFileDownload)
+TEST_F(AgentTest, should_report_not_found_when_cannot_find_file)
 {
   QueryMap query;
 
@@ -406,13 +551,35 @@ TEST_F(AgentTest, FailedFileDownload)
 
   {
     PARSE_XML_RESPONSE(uri.c_str());
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error@errorCode", "INVALID_REQUEST");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error@errorCode", "INVALID_URI");
     ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error",
                           ("0.0.0.0: Cannot find handler for: GET " + uri).c_str());
   }
 }
 
-TEST_F(AgentTest, Composition)
+TEST_F(AgentTest, should_report_2_6_not_found_when_cannot_find_file)
+{
+  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false, true,
+                                 {{configuration::Validation, false}});
+
+  QueryMap query;
+
+  string uri("/schemas/MTConnectDevices_1.1.xsd");
+
+  // Register a file with the agent.
+  auto rest = m_agentTestHelper->getRestService();
+  rest->getFileCache()->registerFile(uri, string("./BadFileName.xsd"), "1.1");
+
+  {
+    PARSE_XML_RESPONSE(uri.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI@errorCode", "INVALID_URI");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:ErrorMessage",
+                          ("0.0.0.0: Cannot find handler for: GET " + uri).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidURI/m:URI", "/schemas/MTConnectDevices_1.1.xsd");
+  }
+}
+
+TEST_F(AgentTest, should_include_composition_ids_in_observations)
 {
   auto agent = m_agentTestHelper->m_agent.get();
   addAdapter();
@@ -437,16 +604,16 @@ TEST_F(AgentTest, Composition)
   }
 }
 
-TEST_F(AgentTest, BadCount)
+TEST_F(AgentTest, should_report_an_error_when_the_count_is_out_of_range)
 {
   auto &circ = m_agentTestHelper->getAgent()->getCircularBuffer();
   int size = circ.getBufferSize() + 1;
   {
     QueryMap query {{"count", "NON_INTEGER"}};
     PARSE_XML_RESPONSE_QUERY("/sample", query);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_REQUEST");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_PARAMETER_VALUE");
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error",
-                          "0.0.0.0: Parameter Error: for query parameter 'count': cannot convert "
+                          "query parameter 'count': cannot convert "
                           "string 'NON_INTEGER' to integer");
   }
 
@@ -494,7 +661,111 @@ TEST_F(AgentTest, BadCount)
   }
 }
 
-TEST_F(AgentTest, Adapter)
+TEST_F(AgentTest, should_report_a_2_6_error_when_the_count_is_out_of_range)
+{
+  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false, true,
+                                 {{configuration::Validation, false}});
+
+  auto &circ = m_agentTestHelper->getAgent()->getCircularBuffer();
+  int size = circ.getBufferSize() + 1;
+  {
+    QueryMap query {{"count", "NON_INTEGER"}};
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue@errorCode", "INVALID_PARAMETER_VALUE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:URI", "/sample?count=NON_INTEGER");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:ErrorMessage",
+                          "query parameter 'count': cannot convert "
+                          "string 'NON_INTEGER' to integer");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter@name", "count");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter/m:Format", "int32");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter/m:Type", "integer");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter/m:Value", "NON_INTEGER");
+  }
+
+  {
+    QueryMap query {{"count", "-500"}};
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    string value("'count' must be greater than ");
+    value += to_string(-size);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:Request", "MTConnectStreams");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", value.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?count=-500");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "count");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "-500");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum",
+                          to_string(size - 1).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum",
+                          to_string(-size + 1).c_str());
+  }
+
+  {
+    QueryMap query {{"count", "0"}};
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", "'count' must not be zero(0)");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?count=0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "count");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum",
+                          to_string(size - 1).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum",
+                          to_string(-size + 1).c_str());
+  }
+
+  {
+    QueryMap query {{"count", "500"}};
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    string value("'count' must be less than ");
+    value += to_string(size);
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", value.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?count=500");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "count");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "500");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum",
+                          to_string(size - 1).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum",
+                          to_string(-size + 1).c_str());
+  }
+
+  {
+    QueryMap query {{"count", "9999999"}};
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    string value("'count' must be less than ");
+    value += to_string(size);
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", value.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?count=9999999");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "count");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "9999999");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum",
+                          to_string(size - 1).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum",
+                          to_string(-size + 1).c_str());
+  }
+
+  {
+    QueryMap query {{"count", "-9999999"}};
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    string value("'count' must be greater than ");
+    value += to_string(-size);
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage", value.c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?count=-9999999");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "count");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "-9999999");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum",
+                          to_string(size - 1).c_str());
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum",
+                          to_string(-size + 1).c_str());
+  }
+}
+
+TEST_F(AgentTest, should_process_addapter_data)
 {
   addAdapter();
 
@@ -524,7 +795,7 @@ TEST_F(AgentTest, Adapter)
   }
 }
 
-TEST_F(AgentTest, SampleAtNextSeq)
+TEST_F(AgentTest, should_get_samples_using_next_sequence)
 {
   QueryMap query;
   addAdapter();
@@ -705,7 +976,7 @@ TEST_F(AgentTest, should_give_empty_stream_with_no_new_samples)
   }
 }
 
-TEST_F(AgentTest, AddToBuffer)
+TEST_F(AgentTest, should_not_leak_observations_when_added_to_buffer)
 {
   auto agent = m_agentTestHelper->m_agent.get();
   QueryMap query;
@@ -797,7 +1068,7 @@ TEST_F(AgentTest, should_int_64_sequences_should_not_truncate_at_32_bits)
 #endif
 }
 
-TEST_F(AgentTest, DuplicateCheck)
+TEST_F(AgentTest, should_not_allow_duplicates_values)
 {
   addAdapter();
 
@@ -824,7 +1095,7 @@ TEST_F(AgentTest, DuplicateCheck)
   }
 }
 
-TEST_F(AgentTest, DuplicateCheckAfterDisconnect)
+TEST_F(AgentTest, should_not_duplicate_unavailable_when_disconnected)
 {
   addAdapter({{configuration::FilterDuplicates, true}});
 
@@ -863,7 +1134,7 @@ TEST_F(AgentTest, DuplicateCheckAfterDisconnect)
   }
 }
 
-TEST_F(AgentTest, AutoAvailable)
+TEST_F(AgentTest, should_handle_auto_available_if_adapter_option_is_set)
 {
   addAdapter({{configuration::AutoAvailable, true}});
   auto agent = m_agentTestHelper->m_agent.get();
@@ -906,7 +1177,7 @@ TEST_F(AgentTest, AutoAvailable)
   }
 }
 
-TEST_F(AgentTest, MultipleDisconnect)
+TEST_F(AgentTest, should_handle_multiple_disconnnects)
 {
   addAdapter();
   auto agent = m_agentTestHelper->m_agent.get();
@@ -976,7 +1247,7 @@ TEST_F(AgentTest, MultipleDisconnect)
   }
 }
 
-TEST_F(AgentTest, IgnoreTimestamps)
+TEST_F(AgentTest, should_ignore_timestamps_if_configured_to_do_so)
 {
   addAdapter();
 
@@ -1010,7 +1281,7 @@ TEST_F(AgentTest, InitialTimeSeriesValues)
   }
 }
 
-TEST_F(AgentTest, DynamicCalibration)
+TEST_F(AgentTest, should_support_dynamic_calibration_data)
 {
   addAdapter({{configuration::ConversionRequired, true}});
   auto agent = m_agentTestHelper->getAgent();
@@ -1052,7 +1323,7 @@ TEST_F(AgentTest, DynamicCalibration)
   }
 }
 
-TEST_F(AgentTest, FilterValues13)
+TEST_F(AgentTest, should_filter_as_specified_in_1_3_test_1)
 {
   m_agentTestHelper->createAgent("/samples/filter_example_1.3.xml", 8, 4, "1.5", 25);
   addAdapter();
@@ -1091,7 +1362,7 @@ TEST_F(AgentTest, FilterValues13)
   }
 }
 
-TEST_F(AgentTest, FilterValues)
+TEST_F(AgentTest, should_filter_as_specified_in_1_3_test_2)
 {
   m_agentTestHelper->createAgent("/samples/filter_example_1.3.xml", 8, 4, "1.5", 25);
   addAdapter();
@@ -1155,7 +1426,7 @@ TEST_F(AgentTest, FilterValues)
   }
 }
 
-TEST_F(AgentTest, TestPeriodFilterWithIgnoreTimestamps)
+TEST_F(AgentTest, period_filter_should_work_with_ignore_timestamps)
 {
   // Test period filter with ignore timestamps
   m_agentTestHelper->createAgent("/samples/filter_example_1.3.xml", 8, 4, "1.5", 25);
@@ -1186,7 +1457,7 @@ TEST_F(AgentTest, TestPeriodFilterWithIgnoreTimestamps)
   }
 }
 
-TEST_F(AgentTest, TestPeriodFilterWithRelativeTime)
+TEST_F(AgentTest, period_filter_should_work_with_relative_time)
 {
   // Test period filter with relative time
   m_agentTestHelper->createAgent("/samples/filter_example_1.3.xml", 8, 4, "1.5", 25);
@@ -1216,7 +1487,7 @@ TEST_F(AgentTest, TestPeriodFilterWithRelativeTime)
   }
 }
 
-TEST_F(AgentTest, ResetTriggered)
+TEST_F(AgentTest, reset_triggered_should_work)
 {
   addAdapter();
 
@@ -1239,7 +1510,7 @@ TEST_F(AgentTest, ResetTriggered)
   }
 }
 
-TEST_F(AgentTest, References)
+TEST_F(AgentTest, should_honor_references_when_getting_current_or_sample)
 {
   using namespace device_model;
 
@@ -1301,7 +1572,7 @@ TEST_F(AgentTest, References)
   }
 }
 
-TEST_F(AgentTest, Discrete)
+TEST_F(AgentTest, should_honor_discrete_data_items_and_not_filter_dups)
 {
   m_agentTestHelper->createAgent("/samples/discrete_example.xml");
   addAdapter({{configuration::FilterDuplicates, true}});
@@ -1345,7 +1616,7 @@ TEST_F(AgentTest, Discrete)
 
 // ------------------------------
 
-TEST_F(AgentTest, UpcaseValues)
+TEST_F(AgentTest, should_honor_upcase_values)
 {
   addAdapter({{configuration::FilterDuplicates, true}, {configuration::UpcaseDataItemValue, true}});
 
@@ -1365,7 +1636,7 @@ TEST_F(AgentTest, UpcaseValues)
   }
 }
 
-TEST_F(AgentTest, ConditionSequence)
+TEST_F(AgentTest, should_handle_condition_activation)
 {
   addAdapter({{configuration::FilterDuplicates, true}});
   auto agent = m_agentTestHelper->getAgent();
@@ -1544,7 +1815,7 @@ TEST_F(AgentTest, ConditionSequence)
   }
 }
 
-TEST_F(AgentTest, EmptyLastItemFromAdapter)
+TEST_F(AgentTest, should_handle_empty_entry_as_last_pair_from_adapter)
 {
   addAdapter({{configuration::FilterDuplicates, true}});
   auto agent = m_agentTestHelper->getAgent();
@@ -1605,7 +1876,7 @@ TEST_F(AgentTest, EmptyLastItemFromAdapter)
   }
 }
 
-TEST_F(AgentTest, ConstantValue)
+TEST_F(AgentTest, should_handle_constant_values)
 {
   addAdapter();
   auto agent = m_agentTestHelper->getAgent();
@@ -1632,7 +1903,7 @@ TEST_F(AgentTest, ConstantValue)
   }
 }
 
-TEST_F(AgentTest, BadDataItem)
+TEST_F(AgentTest, should_handle_bad_data_item_from_adapter)
 {
   addAdapter();
 
@@ -1842,793 +2113,6 @@ TEST_F(AgentTest, should_handle_uuid_change)
   }
 }
 
-// ------------------------- Asset Tests ---------------------------------
-
-TEST_F(AgentTest, AssetStorage)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "1.3", 4, true);
-
-  auto rest = m_agentTestHelper->getRestService();
-  ASSERT_TRUE(rest->getServer()->arePutsAllowed());
-  string body = "<Part assetId='P1' deviceUuid='LinuxCNC'>TEST</Part>";
-  QueryMap queries;
-
-  queries["type"] = "Part";
-  queries["device"] = "LinuxCNC";
-
-  ASSERT_EQ((unsigned int)4, agent->getAssetStorage()->getMaxAssets());
-  ASSERT_EQ((unsigned int)0, agent->getAssetStorage()->getCount());
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset/123", body, queries);
-    ASSERT_EQ((unsigned int)1, agent->getAssetStorage()->getCount());
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/123");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetBufferSize", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST");
-  }
-
-  // The device should generate an asset changed event as well.
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:AssetChanged", "123");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:AssetChanged@assetType", "Part");
-  }
-}
-
-TEST_F(AgentTest, AssetBuffer)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "1.3", 4, true);
-  string body = "<Part assetId='P1'>TEST 1</Part>";
-  QueryMap queries;
-
-  queries["device"] = "000";
-  queries["type"] = "Part";
-
-  const auto &storage = agent->getAssetStorage();
-
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-  ASSERT_EQ((unsigned int)0, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-    ASSERT_EQ(1, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 1");
-  }
-
-  // Make sure replace works properly
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-    ASSERT_EQ(1, storage->getCountForType("Part"));
-  }
-
-  body = "<Part assetId='P2'>TEST 2</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)2, storage->getCount());
-    ASSERT_EQ(2, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 2");
-  }
-
-  body = "<Part assetId='P3'>TEST 3</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)3, storage->getCount());
-    ASSERT_EQ(3, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 3");
-  }
-
-  body = "<Part assetId='P4'>TEST 4</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)4, storage->getCount());
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 4");
-    ASSERT_EQ(4, storage->getCountForType("Part"));
-  }
-
-  // Test multiple asset get
-  {
-    PARSE_XML_RESPONSE("/assets");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[4]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[3]", "TEST 2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[2]", "TEST 3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[1]", "TEST 4");
-  }
-
-  // Test multiple asset get with filter
-  {
-    PARSE_XML_RESPONSE_QUERY("/asset", queries);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[4]", "TEST 4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[3]", "TEST 3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[2]", "TEST 2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[1]", "TEST 1");
-  }
-
-  queries["count"] = "2";
-  {
-    PARSE_XML_RESPONSE_QUERY("/assets", queries);
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 2);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[1]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part[2]", "TEST 2");
-  }
-
-  queries.erase("count");
-
-  body = "<Part assetId='P5'>TEST 5</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)4, storage->getCount());
-    ASSERT_EQ(4, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P5");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 5");
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error@errorCode", "ASSET_NOT_FOUND");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error",
-                          "Cannot find asset for asset Ids: P1");
-  }
-
-  body = "<Part assetId='P3'>TEST 6</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)4, storage->getCount());
-    ASSERT_EQ(4, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 6");
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 2");
-  }
-
-  body = "<Part assetId='P2'>TEST 7</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)4, storage->getCount());
-    ASSERT_EQ(4, storage->getCountForType("Part"));
-  }
-
-  body = "<Part assetId='P6'>TEST 8</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)4, storage->getCount());
-    ASSERT_EQ(4, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P6");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 8");
-  }
-
-  // Now since two and three have been modified, asset 4 should be removed.
-  {
-    PARSE_XML_RESPONSE("/asset/P4");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error@errorCode", "ASSET_NOT_FOUND");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error",
-                          "Cannot find asset for asset Ids: P4");
-  }
-}
-
-TEST_F(AgentTest, AssetError)
-{
-  {
-    PARSE_XML_RESPONSE("/asset/123");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error@errorCode", "ASSET_NOT_FOUND");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error",
-                          "Cannot find asset for asset Ids: 123");
-  }
-}
-
-TEST_F(AgentTest, AdapterAddAsset)
-{
-  addAdapter();
-  auto agent = m_agentTestHelper->getAgent();
-  const auto &storage = agent->getAssetStorage();
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|<Part assetId='P1'>TEST 1</Part>");
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-  ASSERT_EQ((unsigned int)1, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/asset/P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 1");
-  }
-}
-
-TEST_F(AgentTest, MultiLineAsset)
-{
-  addAdapter();
-  auto agent = m_agentTestHelper->getAgent();
-  const auto &storage = agent->getAssetStorage();
-
-  m_agentTestHelper->m_adapter->parseBuffer(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|--multiline--AAAA\n");
-  m_agentTestHelper->m_adapter->parseBuffer(
-      "<Part assetId='P1'>\n"
-      "  <PartXXX>TEST 1</PartXXX>\n"
-      "  Some Text\n"
-      "  <Extra>XXX</Extra>\n");
-  m_agentTestHelper->m_adapter->parseBuffer(
-      "</Part>\n"
-      "--multiline--AAAA\n");
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-  ASSERT_EQ((unsigned int)1, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/asset/P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part/m:PartXXX", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part/m:Extra", "XXX");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part@assetId", "P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part@deviceUuid", "000");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part@timestamp", "2021-02-01T12:00:00Z");
-  }
-
-  // Make sure we can still add a line and we are out of multiline mode...
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|line|204");
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:Line", "204");
-  }
-}
-
-TEST_F(AgentTest, BadAsset)
-{
-  addAdapter();
-  const auto &storage = m_agentTestHelper->m_agent->getAssetStorage();
-
-  m_agentTestHelper->m_adapter->parseBuffer(
-      "2021-02-01T12:00:00Z|@ASSET@|111|CuttingTool|--multiline--AAAA\n");
-  m_agentTestHelper->m_adapter->parseBuffer((getFile("asset4.xml") + "\n").c_str());
-  m_agentTestHelper->m_adapter->parseBuffer("--multiline--AAAA\n");
-  ASSERT_EQ((unsigned int)0, storage->getCount());
-}
-
-TEST_F(AgentTest, AssetRemoval)
-{
-  string body = "<Part assetId='P1'>TEST 1</Part>";
-  QueryMap query;
-
-  query["device"] = "LinuxCNC";
-  query["type"] = "Part";
-
-  const auto &storage = m_agentTestHelper->m_agent->getAssetStorage();
-
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-  ASSERT_EQ((unsigned int)0, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, query);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-    ASSERT_EQ(1, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 1");
-  }
-
-  // Make sure replace works properly
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, query);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-    ASSERT_EQ(1, storage->getCountForType("Part"));
-  }
-
-  body = "<Part assetId='P2'>TEST 2</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, query);
-    ASSERT_EQ((unsigned int)2, storage->getCount());
-    ASSERT_EQ(2, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 2");
-  }
-
-  body = "<Part assetId='P3'>TEST 3</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, query);
-    ASSERT_EQ((unsigned int)3, storage->getCount());
-    ASSERT_EQ(3, storage->getCountForType("Part"));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset/P3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 3");
-  }
-
-  body = "<Part assetId='P2' removed='true'>TEST 2</Part>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, query);
-    ASSERT_EQ((unsigned int)3, storage->getCount(false));
-    ASSERT_EQ(3, storage->getCountForType("Part", false));
-  }
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved", "P2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved@assetType", "Part");
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset");
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 2);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[2]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[1]", "TEST 3");
-  }
-
-  query["removed"] = "true";
-  {
-    PARSE_XML_RESPONSE_QUERY("/asset", query);
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 3);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[1]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[2]", "TEST 2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[2]@removed", "true");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[3]", "TEST 3");
-  }
-}
-
-TEST_F(AgentTest, AssetRemovalByAdapter)
-{
-  addAdapter();
-  QueryMap query;
-  auto agent = m_agentTestHelper->getAgent();
-  const auto &storage = agent->getAssetStorage();
-
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|<Part assetId='P1'>TEST 1</Part>");
-  ASSERT_EQ((unsigned int)1, storage->getCount());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P2|Part|<Part assetId='P2'>TEST 2</Part>");
-  ASSERT_EQ((unsigned int)2, storage->getCount());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P3|Part|<Part assetId='P3'>TEST 3</Part>");
-  ASSERT_EQ((unsigned int)3, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "P3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged@assetType", "Part");
-  }
-
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|@REMOVE_ASSET@|P2\r");
-  ASSERT_EQ((unsigned int)3, storage->getCount(false));
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved", "P2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved@assetType", "Part");
-  }
-
-  {
-    PARSE_XML_RESPONSE("/asset");
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 2);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[2]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[1]", "TEST 3");
-  }
-
-  // TODO: When asset is removed and the content is literal, it will
-  // not regenerate the attributes for the asset.
-  query["removed"] = "true";
-  {
-    PARSE_XML_RESPONSE_QUERY("/asset", query);
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 3);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[3]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[2]", "TEST 2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[1]", "TEST 3");
-  }
-}
-
-TEST_F(AgentTest, AssetAdditionOfAssetChanged12)
-{
-  m_agentTestHelper->createAgent("/samples/min_config.xml", 8, 4, "1.2", 25);
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/probe");
-    ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_CHANGED']", 1);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:DataItem[@type='ASSET_CHANGED']@discrete", nullptr);
-    ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_REMOVED']", 0);
-  }
-}
-
-TEST_F(AgentTest, AssetAdditionOfAssetRemoved13)
-{
-  m_agentTestHelper->createAgent("/samples/min_config.xml", 8, 4, "1.3", 25);
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/probe");
-    ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_CHANGED']", 1);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:DataItem[@type='ASSET_CHANGED']@discrete", nullptr);
-    ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_REMOVED']", 1);
-  }
-}
-
-TEST_F(AgentTest, AssetAdditionOfAssetRemoved15)
-{
-  m_agentTestHelper->createAgent("/samples/min_config.xml", 8, 4, "1.5", 25);
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/probe");
-    ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_CHANGED']", 1);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:DataItem[@type='ASSET_CHANGED']@discrete", "true");
-    ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_REMOVED']", 1);
-  }
-}
-
-TEST_F(AgentTest, AssetPrependId)
-{
-  addAdapter();
-  auto agent = m_agentTestHelper->getAgent();
-  const auto &storage = agent->getAssetStorage();
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|@1|Part|<Part assetId='1'>TEST 1</Part>");
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-  ASSERT_EQ((unsigned int)1, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/asset/0001");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Part@assetId", "0001");
-  }
-}
-
-TEST_F(AgentTest, RemoveLastAssetChanged)
-{
-  addAdapter();
-  auto agent = m_agentTestHelper->getAgent();
-  const auto &storage = agent->getAssetStorage();
-
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|<Part assetId='P1'>TEST 1</Part>");
-  ASSERT_EQ((unsigned int)1, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged@assetType", "Part");
-  }
-
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|@REMOVE_ASSET@|P1");
-  ASSERT_EQ((unsigned int)1, storage->getCount(false));
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved", "P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved@assetType", "Part");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "UNAVAILABLE");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged@assetType", "Part");
-  }
-}
-
-TEST_F(AgentTest, RemoveAssetUsingHttpDelete)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "1.3", 4, true);
-  addAdapter();
-  const auto &storage = agent->getAssetStorage();
-
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|<Part assetId='P1'>TEST 1</Part>");
-  ASSERT_EQ((unsigned int)1, storage->getCount(false));
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged@assetType", "Part");
-  }
-
-  {
-    PARSE_XML_RESPONSE_DELETE("/asset/P1");
-  }
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved", "P1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved@assetType", "Part");
-  }
-}
-
-TEST_F(AgentTest, AssetChangedWhenUnavailable)
-{
-  addAdapter();
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "UNAVAILABLE");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved", "UNAVAILABLE");
-  }
-}
-
-TEST_F(AgentTest, RemoveAllAssets)
-{
-  addAdapter();
-  auto agent = m_agentTestHelper->getAgent();
-  const auto &storage = agent->getAssetStorage();
-
-  ASSERT_EQ((unsigned int)4, storage->getMaxAssets());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|<Part assetId='P1'>TEST 1</Part>");
-  ASSERT_EQ((unsigned int)1, storage->getCount());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P2|Part|<Part assetId='P2'>TEST 2</Part>");
-  ASSERT_EQ((unsigned int)2, storage->getCount());
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P3|Part|<Part assetId='P3'>TEST 3</Part>");
-  ASSERT_EQ((unsigned int)3, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "P3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged@assetType", "Part");
-  }
-
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|@REMOVE_ALL_ASSETS@|Part");
-  ASSERT_EQ((unsigned int)3, storage->getCount(false));
-
-  {
-    PARSE_XML_RESPONSE("/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved", "P3");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetRemoved@assetType", "Part");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged", "UNAVAILABLE");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetChanged@assetType", "Part");
-  }
-
-  ASSERT_EQ((unsigned int)0, storage->getCount());
-
-  {
-    PARSE_XML_RESPONSE("/assets");
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 0);
-  }
-
-  // TODO: When asset is removed and the content is literal, it will
-  // not regenerate the attributes for the asset.
-  {
-    QueryMap q {{"removed", "true"}};
-    PARSE_XML_RESPONSE_QUERY("/asset", q);
-    ASSERT_XML_PATH_COUNT(doc, "//m:Assets/*", 3);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header@assetCount", "0");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[3]", "TEST 1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[2]", "TEST 2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Assets/*[1]", "TEST 3");
-  }
-}
-
-TEST_F(AgentTest, AssetProbe)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "1.3", 4, true);
-  string body = "<Part assetId='P1'>TEST 1</Part>";
-  QueryMap queries;
-  const auto &storage = agent->getAssetStorage();
-
-  queries["device"] = "LinuxCNC";
-  queries["type"] = "Part";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-  }
-  {
-    PARSE_XML_RESPONSE_PUT("/asset/P2", body, queries);
-    ASSERT_EQ((unsigned int)2, storage->getCount());
-  }
-
-  {
-    PARSE_XML_RESPONSE("/probe");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header/m:AssetCounts/m:AssetCount@assetType", "Part");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Header/m:AssetCounts/m:AssetCount", "2");
-  }
-}
-
-TEST_F(AgentTest, ResponseToHTTPAssetPutErrors)
-{
-  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "1.3", 4, true);
-
-  const string body {
-      R"DOC(<CuttingTool assetId="M8010N9172N:1.0" serialNumber="1234" toolId="CAT">
-  <CuttingToolLifeCycle>
-    <CutterStatus>
-      <Status>NEW</Status>
-    </CutterStatus>
-    <Measurements>
-      <FunctionalLength code="LF" maximum="5.2" minimum="4.95" nominal="5" units="MILLIMETER"/>
-      <CuttingDiameterMax code="DC" maximum="1.4" minimum="0.95" nominal="1.25" units="MILLIMETER"/>
-    </Measurements>
-  </CuttingToolLifeCycle>
-</CuttingTool>
-)DOC"};
-
-  QueryMap queries;
-
-  queries["device"] = "LinuxCNC";
-  queries["type"] = "CuttingTool";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[1]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[1]",
-                          "Asset parsed with errors.");
-
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[2]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[2]",
-                          "FunctionalLength(VALUE): Property VALUE is required and not provided");
-
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[3]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[3]",
-                          "Measurements: Invalid element 'FunctionalLength'");
-
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[4]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[4]",
-                          "CuttingDiameterMax(VALUE): Property VALUE is required and not provided");
-
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[5]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[5]",
-                          "Measurements: Invalid element 'CuttingDiameterMax'");
-
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[6]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[6]",
-                          "Measurements(Measurement): Entity list requirement Measurement must "
-                          "have at least 1 entries, 0 found");
-
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[7]@errorCode",
-                          "INVALID_REQUEST");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:MTConnectError/m:Errors/m:Error[7]",
-                          "CuttingToolLifeCycle: Invalid element 'Measurements'");
-  }
-}
-
-TEST_F(AgentTest, update_asset_count_data_item_v2_0)
-{
-  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 10, "2.0", 4, true);
-  addAdapter();
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P1|Part|<Part assetId='P1'>TEST 1</Part>");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry@key", "Part");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "1");
-  }
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|P2|Part|<Part assetId='P2'>TEST 1</Part>");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry@key", "Part");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "2");
-  }
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|T1|Tool|<Tool assetId='T1'>TEST 1</Tool>");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Tool']", "1");
-  }
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|T2|Tool|<Tool assetId='T2'>TEST 1</Tool>");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Tool']", "2");
-  }
-
-  m_agentTestHelper->m_adapter->processData(
-      "2021-02-01T12:00:00Z|@ASSET@|T3|Tool|<Tool assetId='T3'>TEST 1</Tool>");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "2");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Tool']", "3");
-  }
-
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|@REMOVE_ASSET@|P1");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Tool']", "3");
-  }
-
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|@REMOVE_ASSET@|P2");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_COUNT(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", 0);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Tool']", "3");
-  }
-
-  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|@REMOVE_ALL_ASSETS@|");
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_COUNT(doc, "//m:AssetCountDataSet/*", 0);
-  }
-}
-
 /// @name Streaming Tests
 /// Tests that validate HTTP long poll behavior of the agent
 
@@ -2641,9 +2125,9 @@ TEST_F(AgentTest, interval_should_be_a_valid_integer_value)
   {
     query["interval"] = "NON_INTEGER";
     PARSE_XML_RESPONSE_QUERY("/sample", query);
-    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_REQUEST");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "INVALID_PARAMETER_VALUE");
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error",
-                          "0.0.0.0: Parameter Error: for query parameter 'interval': cannot "
+                          "query parameter 'interval': cannot "
                           "convert string 'NON_INTEGER' to integer");
   }
 
@@ -2669,6 +2153,73 @@ TEST_F(AgentTest, interval_should_be_a_valid_integer_value)
     PARSE_XML_RESPONSE_QUERY("/sample", query);
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error@errorCode", "OUT_OF_RANGE");
     ASSERT_XML_PATH_EQUAL(doc, "//m:Error", "'interval' must be greater than -1");
+  }
+}
+
+/// @test ensure an error is returned when the interval has an invalid value using 2.6 error
+/// reporting
+TEST_F(AgentTest, interval_should_be_a_valid_integer_value_in_2_6)
+{
+  m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.6", 4, false, true,
+                                 {{configuration::Validation, false}});
+  QueryMap query;
+
+  ///    - Cannot be test or a non-integer value
+  {
+    query["interval"] = "NON_INTEGER";
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue@errorCode", "INVALID_PARAMETER_VALUE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:URI", "/sample?interval=NON_INTEGER");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:ErrorMessage",
+                          "query parameter 'interval': cannot convert "
+                          "string 'NON_INTEGER' to integer");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter@name", "interval");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter/m:Format", "int32");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter/m:Type", "integer");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:InvalidParameterValue/m:QueryParameter/m:Value", "NON_INTEGER");
+  }
+
+  ///     - Cannot be nagative
+  {
+    query["interval"] = "-123";
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?interval=-123");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage",
+                          "'interval' must be greater than -1");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "interval");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "-123");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum", "0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum", "2147483646");
+  }
+
+  ///    - Cannot be >= 2147483647
+  {
+    query["interval"] = "2147483647";
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?interval=2147483647");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage",
+                          "'interval' must be less than 2147483647");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "interval");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "2147483647");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum", "0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum", "2147483646");
+  }
+
+  ///     - Cannot wrap around and create a negative number was set as a int32
+  {
+    query["interval"] = "999999999999999999";
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange@errorCode", "OUT_OF_RANGE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:URI", "/sample?interval=999999999999999999");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:ErrorMessage",
+                          "'interval' must be greater than -1");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter@name", "interval");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Value", "-1486618625");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Minimum", "0");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:OutOfRange/m:QueryParameter/m:Maximum", "2147483646");
   }
 }
 
@@ -2860,108 +2411,6 @@ TEST_F(AgentTest, shound_add_asset_count_when_20)
     ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_REMOVED']", 1);
     ASSERT_XML_PATH_COUNT(doc, "//m:DataItem[@type='ASSET_COUNT']", 1);
     ASSERT_XML_PATH_EQUAL(doc, "//m:DataItem[@type='ASSET_COUNT']@representation", "DATA_SET");
-  }
-}
-
-TEST_F(AgentTest, asset_count_should_not_occur_in_header_post_20)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.0", 4, true);
-
-  string body = "<Part assetId='P1'>TEST 1</Part>";
-  QueryMap queries;
-  const auto &storage = agent->getAssetStorage();
-
-  queries["device"] = "LinuxCNC";
-  queries["type"] = "Part";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body, queries);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-  }
-  {
-    PARSE_XML_RESPONSE_PUT("/asset/P2", body, queries);
-    ASSERT_EQ((unsigned int)2, storage->getCount());
-  }
-
-  {
-    PARSE_XML_RESPONSE("/probe");
-    ASSERT_XML_PATH_COUNT(doc, "//m:Header/*", 0);
-  }
-}
-
-TEST_F(AgentTest, asset_count_should_track_asset_additions_by_type)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.0", 4, true);
-
-  string body1 = "<Part assetId='P1'>TEST 1</Part>";
-  QueryMap queries;
-  const auto &storage = agent->getAssetStorage();
-
-  queries["device"] = "LinuxCNC";
-  queries["type"] = "Part";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body1, queries);
-    ASSERT_EQ(1u, storage->getCount());
-  }
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "1");
-  }
-
-  string body2 = "<PartThing assetId='P2'>TEST 2</PartThing>";
-  queries["type"] = "PartThing";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset", body2, queries);
-    ASSERT_EQ(2u, storage->getCount());
-  }
-
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='PartThing']", "1");
-  }
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset/P3", body2, queries);
-    ASSERT_EQ(3u, storage->getCount());
-  }
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='PartThing']", "2");
-  }
-
-  body2 = "<PartThing assetId='P3' removed='true'>TEST 2</PartThing>";
-
-  {
-    PARSE_XML_RESPONSE_PUT("/asset/P3", body2, queries);
-    ASSERT_EQ(2u, storage->getCount());
-  }
-  {
-    PARSE_XML_RESPONSE("/LinuxCNC/current");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='Part']", "1");
-    ASSERT_XML_PATH_EQUAL(doc, "//m:AssetCountDataSet/m:Entry[@key='PartThing']", "1");
-  }
-}
-
-TEST_F(AgentTest, asset_should_also_work_using_post_with_assets)
-{
-  auto agent = m_agentTestHelper->createAgent("/samples/test_config.xml", 8, 4, "2.0", 4, true);
-
-  string body = "<Part assetId='P1'>TEST 1</Part>";
-  QueryMap queries;
-  const auto &storage = agent->getAssetStorage();
-
-  {
-    PARSE_XML_RESPONSE_PUT("/assets", body, queries);
-    ASSERT_EQ((unsigned int)1, storage->getCount());
-  }
-  {
-    PARSE_XML_RESPONSE_PUT("/assets/P2", body, queries);
-    ASSERT_EQ((unsigned int)2, storage->getCount());
   }
 }
 

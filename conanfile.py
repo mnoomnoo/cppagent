@@ -9,7 +9,7 @@ import re
 
 class MTConnectAgentConan(ConanFile):
     name = "mtconnect_agent"
-    version = "2.5"
+    version = "2.6"
     url = "https://github.com/mtconnect/cppagent.git"
     license = "Apache License 2.0"
     settings = "os", "compiler", "arch", "build_type"
@@ -35,7 +35,7 @@ class MTConnectAgentConan(ConanFile):
         "with_ruby": True,
         "development": False,
         "shared": False,
-        "winver": "0x0602",
+        "winver": "0x0A00",
         "with_docs": False,
         "cpack": False,
         "agent_prefix": None,
@@ -72,17 +72,13 @@ class MTConnectAgentConan(ConanFile):
         }
 
     exports_sources = "*", "!build", "!test_package/build", "!*~"
-    exports = "conan/mqtt_cpp/*", "conan/mruby/*"
+    exports = "conan/mqtt_cpp/*", "conan/mruby/*", "conan/oniguruma/*"
 
     def validate(self):
         if is_msvc(self) and self.options.shared and self.settings.compiler.runtime != 'dynamic':
             raise ConanInvalidConfiguration("Shared can only be built with DLL runtime.")
         if "libcxx" in self.settings.compiler.fields and self.settings.compiler.libcxx == "libstdc++":
             raise ConanInvalidConfiguration("This package is only compatible with libstdc++11, add -s compiler.libcxx=libstdc++11")
-
-    def layout(self):
-        self.folders.build_folder_vars = ["options.shared", "settings.arch"]
-        cmake_layout(self)
 
     def layout(self):
         self.folders.build_folder_vars = ["options.shared", "settings.arch"]
@@ -105,6 +101,7 @@ class MTConnectAgentConan(ConanFile):
             self.output.info(f"Version of {package} is {ver}")
         else:
             self.output.info(f"Command: '{command}' returned {res}")
+        
         if ver < version:
             ver_text = '.'.join([str(x) for x in version])
             self.output.info(f"Old version of {package}, requesting tool {package}/{ver_text}")
@@ -115,22 +112,22 @@ class MTConnectAgentConan(ConanFile):
     def build_requirements(self):
         self.tool_requires_version("cmake", [3, 26, 4])
         if self.options.with_docs:
-            self.tool_requires_version("doxygen", [1, 9, 4])
+            self.tool_requires_version("doxygen", [1, 14, 0])
 
     def requirements(self):
-        self.requires("boost/1.85.0", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
-        self.requires("libxml2/2.10.3", headers=True, libs=True, visible=True, transitive_headers=True, transitive_libs=True)
-        self.requires("date/2.4.1", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
-        self.requires("nlohmann_json/3.9.1", headers=True, libs=False, transitive_headers=True, transitive_libs=False)
-        self.requires("openssl/3.0.8", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
-        self.requires("rapidjson/cci.20220822", headers=True, libs=False, transitive_headers=True, transitive_libs=False)
-        self.requires("mqtt_cpp/13.2.1", headers=True, libs=False, transitive_headers=True, transitive_libs=False)
+        self.requires("boost/1.88.0", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
+        self.requires("libxml2/2.14.5", headers=True, libs=True, visible=True, transitive_headers=True, transitive_libs=True)
+        self.requires("date/3.0.4", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
+        self.requires("nlohmann_json/3.12.0", headers=True, libs=False, transitive_headers=True, transitive_libs=False)
+        self.requires("openssl/3.5.4", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
+        self.requires("rapidjson/cci.20230929", headers=True, libs=False, transitive_headers=True, transitive_libs=False)
+        self.requires("mqtt_cpp/13.2.2", headers=True, libs=False, transitive_headers=True, transitive_libs=False)
         self.requires("bzip2/1.0.8", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
         
         if self.options.with_ruby:
             self.requires("mruby/3.2.0", headers=True, libs=True, transitive_headers=True, transitive_libs=True)
 
-        self.requires("gtest/1.10.0", headers=True, libs=True, transitive_headers=True, transitive_libs=True, test=True)
+        self.requires("gtest/1.17.0", headers=True, libs=True, transitive_headers=True, transitive_libs=True, test=True)
         
     def configure(self):
         if self.options.shared:
@@ -140,9 +137,6 @@ class MTConnectAgentConan(ConanFile):
             self.options["boost/*"].shared = True
             self.package_type = "shared-library"
 
-        if is_msvc(self):
-            self.options["boost/*"].extra_b2_flags = ("define=BOOST_USE_WINAPI_VERSION=" + str(self.options.winver))
-            
         if is_msvc(self):
             self.options["boost/*"].extra_b2_flags = ("define=BOOST_USE_WINAPI_VERSION=" + str(self.options.winver))
             
@@ -157,6 +151,7 @@ class MTConnectAgentConan(ConanFile):
         self.run("conan export conan/mqtt_cpp", cwd=os.path.dirname(__file__))
         if self.options.with_ruby:
             self.run("conan export conan/mruby", cwd=os.path.dirname(__file__))
+            self.run("conan export conan/oniguruma", cwd=os.path.dirname(__file__))
 
         if not self.options.cpack_generator:
             if is_msvc(self):

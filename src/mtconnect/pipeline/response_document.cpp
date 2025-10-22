@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -221,7 +221,8 @@ namespace mtconnect::pipeline {
     return true;
   }
 
-  inline DataSetValue type(const string &s)
+  template <typename VT>
+  inline VT type(const string &s)
   {
     using namespace boost;
     if (s.empty())
@@ -259,11 +260,10 @@ namespace mtconnect::pipeline {
 
       if (table)
       {
-        entry.m_value.emplace<DataSet>();
-        DataSet &row = get<DataSet>(entry.m_value);
+        TableRow &row = entry.m_value.emplace<TableRow>();
 
         eachElement(n, "Cell", [&row](xmlNodePtr c) {
-          row.emplace(attributeValue(c, "key"), type(text(c)));
+          row.emplace(attributeValue(c, "key"), type<TableCellValue>(text(c)));
           return true;
         });
 
@@ -272,7 +272,7 @@ namespace mtconnect::pipeline {
       }
       else
       {
-        entry.m_value = type(text(n));
+        entry.m_value = type<DataSetValue>(text(n));
       }
 
       ds.insert(entry);
@@ -427,7 +427,7 @@ namespace mtconnect::pipeline {
               return true;
             }
 
-            if (di->isAssetChanged())
+            if (di->isAssetChanged() || di->isAssetAdded())
               out.m_assetEvents.emplace_back((obs));
             else
               out.m_entities.emplace_back(obs);

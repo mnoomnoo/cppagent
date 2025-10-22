@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,6 +58,7 @@ public:
   void deliverDevices(std::list<DevicePtr>) override {}
   void deliverDevice(DevicePtr) override {}
   int32_t getSchemaVersion() const override { return m_schemaVersion; }
+  bool isValidating() const override { return false; }
   void deliverAssetCommand(entity::EntityPtr) override {}
   void deliverCommand(entity::EntityPtr) override {}
   void deliverConnectStatus(entity::EntityPtr, const StringList &, bool) override {}
@@ -106,6 +107,7 @@ protected:
 };
 
 inline DataSetEntry operator"" _E(const char *c, std::size_t) { return DataSetEntry(c); }
+inline TableCell operator"" _C(const char *c, std::size_t) { return TableCell(c); }
 
 TEST_F(DataItemMappingTest, should_map_simple_sample)
 {
@@ -408,20 +410,20 @@ TEST_F(DataItemMappingTest, should_map_an_event_table)
 
   auto &ds = set->getValue<DataSet>();
   ASSERT_EQ(3, ds.size());
-  auto a = get<DataSet>(ds.find("a"_E)->m_value);
+  const auto &a = get<TableRow>(ds.find("a"_E)->m_value);
   ASSERT_EQ(2, a.size());
-  ASSERT_EQ(1, get<int64_t>(a.find("c"_E)->m_value));
-  ASSERT_EQ(3.0, get<double>(a.find("n"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(a.find("c"_C)->m_value));
+  ASSERT_EQ(3.0, get<double>(a.find("n"_C)->m_value));
 
-  auto b = get<DataSet>(ds.find("b"_E)->m_value);
+  const auto &b = get<TableRow>(ds.find("b"_E)->m_value);
   ASSERT_EQ(2, a.size());
-  ASSERT_EQ(2, get<int64_t>(b.find("d"_E)->m_value));
-  ASSERT_EQ(3, get<int64_t>(b.find("e"_E)->m_value));
+  ASSERT_EQ(2, get<int64_t>(b.find("d"_C)->m_value));
+  ASSERT_EQ(3, get<int64_t>(b.find("e"_C)->m_value));
 
-  auto c = get<DataSet>(ds.find("c"_E)->m_value);
+  const auto &c = get<TableRow>(ds.find("c"_E)->m_value);
   ASSERT_EQ(2, c.size());
-  ASSERT_EQ("abc", get<string>(c.find("x"_E)->m_value));
-  ASSERT_EQ("def", get<string>(c.find("y"_E)->m_value));
+  ASSERT_EQ("abc", get<string>(c.find("x"_C)->m_value));
+  ASSERT_EQ("def", get<string>(c.find("y"_C)->m_value));
 }
 
 TEST_F(DataItemMappingTest, should_map_an_sample_table)
@@ -444,20 +446,20 @@ TEST_F(DataItemMappingTest, should_map_an_sample_table)
 
   auto &ds = set->getValue<DataSet>();
   ASSERT_EQ(3, ds.size());
-  auto a = get<DataSet>(ds.find("a"_E)->m_value);
+  const auto &a = get<TableRow>(ds.find("a"_E)->m_value);
   ASSERT_EQ(2, a.size());
-  ASSERT_EQ(1, get<int64_t>(a.find("c"_E)->m_value));
-  ASSERT_EQ(3.0, get<double>(a.find("n"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(a.find("c"_C)->m_value));
+  ASSERT_EQ(3.0, get<double>(a.find("n"_C)->m_value));
 
-  auto b = get<DataSet>(ds.find("b"_E)->m_value);
+  const auto &b = get<TableRow>(ds.find("b"_E)->m_value);
   ASSERT_EQ(2, a.size());
-  ASSERT_EQ(2, get<int64_t>(b.find("d"_E)->m_value));
-  ASSERT_EQ(3, get<int64_t>(b.find("e"_E)->m_value));
+  ASSERT_EQ(2, get<int64_t>(b.find("d"_C)->m_value));
+  ASSERT_EQ(3, get<int64_t>(b.find("e"_C)->m_value));
 
-  auto c = get<DataSet>(ds.find("c"_E)->m_value);
+  const auto &c = get<TableRow>(ds.find("c"_E)->m_value);
   ASSERT_EQ(2, c.size());
-  ASSERT_EQ("abc", get<string>(c.find("x"_E)->m_value));
-  ASSERT_EQ("def", get<string>(c.find("y"_E)->m_value));
+  ASSERT_EQ("abc", get<string>(c.find("x"_C)->m_value));
+  ASSERT_EQ("def", get<string>(c.find("y"_C)->m_value));
 }
 
 TEST_F(DataItemMappingTest, should_handle_data_set_reset_trigger)

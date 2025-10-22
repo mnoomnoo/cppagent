@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,6 +67,7 @@ public:
   void sourceFailed(const std::string &id) override {}
   const ObservationPtr checkDuplicate(const ObservationPtr &obs) const override { return obs; }
   int32_t getSchemaVersion() const override { return SCHEMA_VERSION(2, 3); };
+  bool isValidating() const override { return false; }
 
   std::map<string, DataItemPtr> &m_dataItems;
   std::map<string, DevicePtr> &m_devices;
@@ -747,9 +748,9 @@ TEST_F(JsonMappingTest, should_parse_tables)
   auto dsi = set1.begin();
 
   ASSERT_EQ("r1", dsi->m_key);
-  ASSERT_TRUE(holds_alternative<DataSet>(dsi->m_value));
+  ASSERT_TRUE(holds_alternative<TableRow>(dsi->m_value));
 
-  auto &row1 = get<DataSet>(dsi->m_value);
+  const auto &row1 = get<TableRow>(dsi->m_value);
   ASSERT_EQ(1, row1.size());
 
   auto ri = row1.begin();
@@ -757,7 +758,7 @@ TEST_F(JsonMappingTest, should_parse_tables)
   ASSERT_EQ(123.45, get<double>(ri->m_value));
 
   dsi++;
-  auto &row2 = get<DataSet>(dsi->m_value);
+  const auto &row2 = get<TableRow>(dsi->m_value);
   ASSERT_EQ(2, row2.size());
 
   ri = row2.begin();
@@ -782,9 +783,9 @@ TEST_F(JsonMappingTest, should_parse_tables)
   dsi = set2.begin();
 
   ASSERT_EQ("r1", dsi->m_key);
-  ASSERT_TRUE(holds_alternative<DataSet>(dsi->m_value));
+  ASSERT_TRUE(holds_alternative<TableRow>(dsi->m_value));
 
-  auto &row3 = get<DataSet>(dsi->m_value);
+  const auto &row3 = get<TableRow>(dsi->m_value);
   ASSERT_EQ(2, row3.size());
 
   ri = row3.begin();

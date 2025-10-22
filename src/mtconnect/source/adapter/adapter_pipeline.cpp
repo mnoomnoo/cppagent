@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@
 #include "mtconnect/configuration/agent_config.hpp"
 #include "mtconnect/configuration/config_options.hpp"
 #include "mtconnect/pipeline/convert_sample.hpp"
+#include "mtconnect/pipeline/correct_timestamp.hpp"
 #include "mtconnect/pipeline/deliver.hpp"
 #include "mtconnect/pipeline/delta_filter.hpp"
 #include "mtconnect/pipeline/duplicate_filter.hpp"
@@ -140,14 +141,17 @@ namespace mtconnect {
       if (IsOptionSet(m_options, configuration::ConversionRequired))
         next = next->bind(make_shared<ConvertSample>());
 
-      // Validate Values
-      if (IsOptionSet(m_options, configuration::Validation))
-        next = next->bind(make_shared<Validator>(m_context));
+      if (IsOptionSet(m_options, configuration::CorrectTimestamps))
+        next = next->bind(make_shared<CorrectTimestamp>(m_context));
 
       // Filter dups, by delta, and by period
       next = next->bind(make_shared<DuplicateFilter>(m_context));
       next = next->bind(make_shared<DeltaFilter>(m_context));
       next = next->bind(make_shared<PeriodFilter>(m_context, m_strand));
+
+      // Validate Values
+      if (IsOptionSet(m_options, configuration::Validation))
+        next = next->bind(make_shared<Validator>(m_context));
 
       // Deliver
       std::optional<string> obsMetrics;

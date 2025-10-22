@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@
 #include <utility>
 
 #include <libxml/xmlwriter.h>
+#include <libxml/entities.h>
 
 #include "mtconnect/asset/asset.hpp"
 #include "mtconnect/asset/cutting_tool.hpp"
@@ -32,6 +33,7 @@
 #include "mtconnect/device_model/configuration/configuration.hpp"
 #include "mtconnect/device_model/device.hpp"
 #include "mtconnect/logging.hpp"
+#include "mtconnect/sink/rest_sink/error.hpp"
 #include "mtconnect/version.h"
 #include "xml_printer.hpp"
 
@@ -343,7 +345,7 @@ namespace mtconnect::printer {
   }
 
   std::string XmlPrinter::printErrors(const uint64_t instanceId, const unsigned int bufferSize,
-                                      const uint64_t nextSeq, const ProtoErrorList &list,
+                                      const uint64_t nextSeq, const entity::EntityList &list,
                                       bool pretty, const std::optional<std::string> requestId) const
   {
     string ret;
@@ -357,9 +359,18 @@ namespace mtconnect::printer {
 
       {
         AutoElement e1(writer, "Errors");
+        entity::XmlPrinter printer;
+
+        auto version = IntSchemaVersion(*m_schemaVersion);
         for (auto &e : list)
         {
-          addSimpleElement(writer, "Error", e.second, {{"errorCode", e.first}});
+          entity::EntityPtr err {e};
+          if (version < SCHEMA_VERSION(2, 6))
+          {
+            auto re = dynamic_pointer_cast<sink::rest_sink::Error>(err);
+            err = re->makeLegacyError();
+          }
+          printer.print(writer, err, m_errorNsSet);
         }
       }
       closeElement(writer);  // MTConnectError
@@ -679,12 +690,9 @@ namespace mtconnect::printer {
     if (requestId)
       addAttribute(writer, "requestId", *requestId);
 
-    int major, minor;
-    char c;
-    stringstream v(*m_schemaVersion);
-    v >> major >> c >> minor;
+    auto schemaVersion = IntSchemaVersion(*m_schemaVersion);
 
-    if (major > 1 || (major == 1 && minor >= 7))
+    if (schemaVersion >= SCHEMA_VERSION(1, 7))
     {
       addAttribute(writer, "deviceModelChangeTime", m_modelChangeTime);
     }
@@ -708,7 +716,7 @@ namespace mtconnect::printer {
       addAttribute(writer, "lastSequence", to_string(lastSeq));
     }
 
-    if (major < 2 && aType == eDEVICES && count && !count->empty())
+    if (schemaVersion < SCHEMA_VERSION(2, 0) && aType == eDEVICES && count && !count->empty())
     {
       AutoElement ele(writer, "AssetCounts");
 

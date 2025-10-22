@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -158,72 +158,137 @@ namespace mtconnect::sink::rest_sink {
     /// @brief get the unordered set of query parameters
     const QuerySet &getQueryParameters() const { return m_queryParameters; }
 
-    /// @brief match the session's request against the this routing
+    /// @brief run the session's request if this routing matches
     ///
     /// Call the associated lambda when matched
     ///
     /// @param[in] session the session making the request to pass to the Routing if matched
     /// @param[in,out] request the incoming request with a verb and a path
     /// @return `true` if the request was matched
+    bool run(SessionPtr session, RequestPtr request)
+    {
+      if (validateRequest(session, request))
+        return m_function(session, request);
+      else
+        return false;
+    }
+
+    /// @brief check if the routing matches the request
+    ///
+    /// @param[in] session the session making the request to pass to the Routing if matched
+    /// @param[in,out] request the incoming request with a verb and a path
+    /// @return `true` if the request was matched
+    /// @throws `RestError` if there are any parameter errors
     bool matches(SessionPtr session, RequestPtr request)
     {
-      try
+      if (request->m_command)
       {
-        if (!request->m_command)
+        return m_command == *request->m_command && m_verb == request->m_verb;
+      }
+      else
+      {
+        request->m_parameters.clear();
+        std::smatch m;
+        if (m_verb == request->m_verb && std::regex_match(request->m_path, m, m_pattern))
         {
-          request->m_parameters.clear();
-          std::smatch m;
-          if (m_verb == request->m_verb && std::regex_match(request->m_path, m, m_pattern))
+          auto s = m.begin();
+          s++;
+          for (auto &p : m_pathParameters)
           {
-            auto s = m.begin();
-            s++;
-            for (auto &p : m_pathParameters)
+            if (s != m.end())
             {
-              if (s != m.end())
+              ParameterValue v(s->str());
+              request->m_parameters.emplace(make_pair(p.m_name, v));
+              s++;
+            }
+          }
+
+          entity::EntityList errors;
+          for (auto &p : m_queryParameters)
+          {
+            auto q = request->m_query.find(p.m_name);
+            if (q != request->m_query.end())
+            {
+              try
               {
-                ParameterValue v(s->str());
+                auto v = convertValue(q->second, p.m_type);
                 request->m_parameters.emplace(make_pair(p.m_name, v));
-                s++;
+              }
+              catch (ParameterError &e)
+              {
+                std::string msg = std::string("query parameter '") + p.m_name + "': " + e.what();
+
+                LOG(warning) << "Parameter error: " << msg;
+                auto error = InvalidParameterValue::make(p.m_name, q->second, p.getTypeName(),
+                                                         p.getTypeFormat(), msg);
+                errors.emplace_back(error);
               }
             }
+            else if (!std::holds_alternative<std::monostate>(p.m_default))
+            {
+              request->m_parameters.emplace(make_pair(p.m_name, p.m_default));
+            }
           }
-          else
-          {
-            return false;
-          }
-        }
 
-        for (auto &p : m_queryParameters)
+          if (!errors.empty())
+            throw RestError(errors, request->m_accepts);
+
+          return true;
+        }
+        else
         {
-          auto q = request->m_query.find(p.m_name);
-          if (q != request->m_query.end())
+          return false;
+        }
+      }
+    }
+
+    /// @brief Validate the request parameters without matching the path
+    /// @param[in] session the session making the request to pass to the Routing if matched
+    /// @param[in,out] request the incoming request with a verb and a path
+    /// @return `true` if the request was matched
+    /// @throws `RestError` if there are any parameter errors
+    bool validateRequest(SessionPtr session, RequestPtr request)
+    {
+      entity::EntityList errors;
+      /// Just validate the types of the parameters
+      for (auto &p : m_pathParameters)
+      {
+        auto it = request->m_parameters.find(p.m_name);
+        if (it != request->m_parameters.end())
+        {
+          if (!validateValueType(p.m_type, it->second))
           {
-            try
-            {
-              auto v = convertValue(q->second, p.m_type);
-              request->m_parameters.emplace(make_pair(p.m_name, v));
-            }
-            catch (ParameterError &e)
-            {
-              std::string msg = std::string("for query parameter '") + p.m_name + "': " + e.what();
-              throw ParameterError(msg);
-            }
-          }
-          else if (!std::holds_alternative<std::monostate>(p.m_default))
-          {
-            request->m_parameters.emplace(make_pair(p.m_name, p.m_default));
+            std::string msg = std::string("path parameter '") + p.m_name +
+                              "': invalid type, expected " + p.getTypeFormat();
+            LOG(warning) << "Parameter error: " << msg;
+            auto error = InvalidParameterValue::make(p.m_name, Parameter::toString(it->second),
+                                                     p.getTypeName(), p.getTypeFormat(), msg);
+            errors.emplace_back(error);
           }
         }
-        return m_function(session, request);
       }
 
-      catch (ParameterError &e)
+      for (auto &p : m_queryParameters)
       {
-        LOG(debug) << "Pattern error: " << e.what();
-        throw e;
+        auto it = request->m_parameters.find(p.m_name);
+        if (it != request->m_parameters.end())
+        {
+          if (!validateValueType(p.m_type, it->second))
+          {
+            std::string msg = std::string("query parameter '") + p.m_name +
+                              "': invalid type, expected " + p.getTypeFormat();
+            LOG(warning) << "Parameter error: " << msg;
+            auto error = InvalidParameterValue::make(p.m_name, Parameter::toString(it->second),
+                                                     p.getTypeName(), p.getTypeFormat(), msg);
+            errors.emplace_back(error);
+          }
+        }
       }
 
-      return false;
+      if (!errors.empty())
+        throw RestError(errors, request->m_accepts);
+
+      return true;
     }
 
     /// @brief check if this is related to a swagger API
@@ -373,6 +438,61 @@ namespace mtconnect::sink::rest_sink {
       throw ParameterError("Unknown type for conversion: " + std::to_string(int(t)));
 
       return ParameterValue();
+    }
+
+    bool validateValueType(ParameterType t, ParameterValue &value)
+    {
+      switch (t)
+      {
+        case STRING:
+          return std::holds_alternative<std::string>(value);
+
+        case NONE:
+          return std::holds_alternative<std::monostate>(value);
+
+        case DOUBLE:
+          if (std::holds_alternative<int32_t>(value))
+            value = double(std::get<int32_t>(value));
+          else if (std::holds_alternative<uint64_t>(value))
+            value = double(std::get<uint64_t>(value));
+
+          return std::holds_alternative<double>(value);
+
+        case INTEGER:
+          if (std::holds_alternative<uint64_t>(value))
+          {
+            auto v = std::get<uint64_t>(value);
+            if (v <= uint64_t(std::numeric_limits<int32_t>::max()))
+              value = int32_t(v);
+          }
+          else if (std::holds_alternative<double>(value))
+          {
+            auto v = std::get<double>(value);
+            if (v >= double(std::numeric_limits<int32_t>::min()) &&
+                v <= double(std::numeric_limits<int32_t>::max()))
+              value = int32_t(v);
+          }
+          return std::holds_alternative<int32_t>(value);
+
+        case UNSIGNED_INTEGER:
+          if (std::holds_alternative<int32_t>(value))
+          {
+            auto v = std::get<int32_t>(value);
+            if (v >= 0)
+              value = uint64_t(v);
+          }
+          else if (std::holds_alternative<double>(value))
+          {
+            auto v = std::get<double>(value);
+            if (v >= 0 && v <= double(std::numeric_limits<uint64_t>::max()))
+              value = uint64_t(v);
+          }
+          return std::holds_alternative<uint64_t>(value);
+
+        case BOOL:
+          return std::holds_alternative<bool>(value);
+      }
+      return false;
     }
 
   protected:

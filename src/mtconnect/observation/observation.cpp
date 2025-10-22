@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,6 +56,7 @@ namespace mtconnect {
 
         factory->registerFactory("Events:Message", Message::getFactory());
         factory->registerFactory("Events:MessageDiscrete", Message::getFactory());
+        factory->registerFactory("Events:AssetAdded", AssetEvent::getFactory());
         factory->registerFactory("Events:AssetChanged", AssetEvent::getFactory());
         factory->registerFactory("Events:AssetRemoved", AssetEvent::getFactory());
         factory->registerFactory("Events:DeviceAdded", DeviceEvent::getFactory());

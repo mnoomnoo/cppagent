@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,6 +71,7 @@ struct MockPipelineContract : public PipelineContract
   void deliverConnectStatus(entity::EntityPtr, const StringList &, bool) override {}
   void sourceFailed(const std::string &id) override {}
   const ObservationPtr checkDuplicate(const ObservationPtr &obs) const override { return obs; }
+  bool isValidating() const override { return false; }
 
   std::map<string, DataItemPtr> &m_dataItems;
 
@@ -606,7 +607,7 @@ TEST_F(PeriodFilterTest, streaming_observations_spaced_temporally)
   }
 
   m_ioContext.run_for(400ms);
-  m_ioContext.reset();
+  m_ioContext.restart();
 
   {
     auto os = observe({"a", "2"}, now + 400ms);
@@ -616,7 +617,7 @@ TEST_F(PeriodFilterTest, streaming_observations_spaced_temporally)
   }
 
   m_ioContext.run_for(200ms);
-  m_ioContext.reset();
+  m_ioContext.restart();
 
   {
     auto os = observe({"a", "3"}, now + 600ms);
@@ -626,7 +627,7 @@ TEST_F(PeriodFilterTest, streaming_observations_spaced_temporally)
   }
 
   m_ioContext.run_for(600ms);
-  m_ioContext.reset();
+  m_ioContext.restart();
 
   {
     auto os = observe({"a", "4"}, now + 1200ms);
@@ -637,7 +638,7 @@ TEST_F(PeriodFilterTest, streaming_observations_spaced_temporally)
   }
 
   m_ioContext.run_for(700ms);
-  m_ioContext.reset();
+  m_ioContext.restart();
 
   {
     auto os = observe({"a", "5"}, now + 1900ms);
@@ -647,7 +648,7 @@ TEST_F(PeriodFilterTest, streaming_observations_spaced_temporally)
   }
 
   m_ioContext.run_for(1200ms);
-  m_ioContext.reset();
+  m_ioContext.restart();
 
   {
     auto os = observe({"a", "6"}, now + 3100ms);
@@ -659,7 +660,7 @@ TEST_F(PeriodFilterTest, streaming_observations_spaced_temporally)
   }
 
   m_ioContext.run_for(1400ms);
-  m_ioContext.reset();
+  m_ioContext.restart();
 
   {
     auto os = observe({"a", "7"}, now + 4500ms);

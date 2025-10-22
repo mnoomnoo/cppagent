@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,6 @@ using namespace mtconnect::pipeline;
 using namespace mtconnect::observation;
 using namespace mtconnect::asset;
 using namespace std;
-using namespace date::literals;
 using namespace std::literals;
 
 // main
@@ -61,6 +60,7 @@ public:
   void deliverConnectStatus(entity::EntityPtr, const StringList &, bool) override {}
   void sourceFailed(const std::string &id) override {}
   const ObservationPtr checkDuplicate(const ObservationPtr &obs) const override { return obs; }
+  bool isValidating() const override { return false; }
 
   DevicePtr m_device;
 };

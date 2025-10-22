@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,7 +56,7 @@ protected:
   void SetUp() override
   {  // Create an agent with only 16 slots and 8 data items.
     m_agentTestHelper = make_unique<AgentTestHelper>();
-    m_agentTestHelper->createAgent("/samples/data_set.xml", 8, 4, "1.6", 25);
+    m_agentTestHelper->createAgent("/samples/data_set.xml", 8, 4, "2.0", 25);
     m_agentId = to_string(getCurrentTimeInSec());
 
     m_checkpoint = nullptr;
@@ -81,6 +81,7 @@ protected:
 };
 
 inline DataSetEntry operator"" _E(const char *c, std::size_t) { return DataSetEntry(c); }
+inline TableCell operator"" _C(const char *c, std::size_t) { return TableCell(c); }
 
 TEST_F(TableTest, DataItem)
 {
@@ -97,11 +98,11 @@ TEST_F(TableTest, test_simple_table_formats)
   ASSERT_TRUE(s1.parse("abc={a=1 b=2.0 c='abc'}", true));
 
   ASSERT_EQ(1, s1.size());
-  const DataSet &abc1 = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc1 = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(3, abc1.size());
-  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc1.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc1.find("c"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc1.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc1.find("c"_C)->m_value));
 }
 
 TEST_F(TableTest, test_simple_table_formats_with_whitespace)
@@ -110,11 +111,11 @@ TEST_F(TableTest, test_simple_table_formats_with_whitespace)
   ASSERT_TRUE(s1.parse("abc={ a=1 b=2.0 c='abc' }", true));
 
   ASSERT_EQ(1, s1.size());
-  const DataSet &abc1 = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc1 = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(3, abc1.size());
-  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc1.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc1.find("c"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc1.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc1.find("c"_C)->m_value));
 }
 
 TEST_F(TableTest, test_simple_table_formats_with_quotes)
@@ -123,11 +124,11 @@ TEST_F(TableTest, test_simple_table_formats_with_quotes)
   ASSERT_TRUE(s1.parse("abc=' a=1 b=2.0 c='abc''", true));
 
   ASSERT_EQ(1, s1.size());
-  const DataSet &abc1 = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc1 = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(3, abc1.size());
-  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc1.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc1.find("c"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc1.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc1.find("c"_C)->m_value));
 }
 
 TEST_F(TableTest, test_simple_table_formats_with_double_quotes)
@@ -136,11 +137,11 @@ TEST_F(TableTest, test_simple_table_formats_with_double_quotes)
   ASSERT_TRUE(s1.parse("abc=\" a=1 b=2.0 c='abc'\"", true));
 
   ASSERT_EQ(1, s1.size());
-  const DataSet &abc1 = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc1 = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(3, abc1.size());
-  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc1.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc1.find("c"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc1.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc1.find("c"_C)->m_value));
 }
 
 TEST_F(TableTest, test_simple_table_formats_with_nested_braces)
@@ -149,11 +150,11 @@ TEST_F(TableTest, test_simple_table_formats_with_nested_braces)
   ASSERT_TRUE(s1.parse("abc={ a=1 b=2.0 c={abc}}", true));
 
   ASSERT_EQ(1, s1.size());
-  const DataSet &abc1 = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc1 = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(3, abc1.size());
-  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc1.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc1.find("c"_E)->m_value));
+  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc1.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc1.find("c"_C)->m_value));
 }
 
 TEST_F(TableTest, test_simple_table_formats_with_removed_key)
@@ -162,13 +163,13 @@ TEST_F(TableTest, test_simple_table_formats_with_removed_key)
   s1.parse("abc={ a=1 b=2.0 c={abc} d= e}", true);
 
   ASSERT_EQ(1, s1.size());
-  const DataSet &abc1 = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc1 = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(5, abc1.size());
-  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc1.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc1.find("c"_E)->m_value));
-  ASSERT_TRUE(abc1.find("d"_E)->m_removed);
-  ASSERT_TRUE(abc1.find("e"_E)->m_removed);
+  ASSERT_EQ(1, get<int64_t>(abc1.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc1.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc1.find("c"_C)->m_value));
+  ASSERT_TRUE(abc1.find("d"_C)->m_removed);
+  ASSERT_TRUE(abc1.find("e"_C)->m_removed);
 }
 
 TEST_F(TableTest, test_mulitple_entries)
@@ -177,18 +178,18 @@ TEST_F(TableTest, test_mulitple_entries)
   ASSERT_TRUE(s1.parse("abc={ a=1 b=2.0 c={abc} d= e} def={x=1.0 y=2.0}", true));
   ASSERT_EQ(2, s1.size());
 
-  const DataSet &abc = get<DataSet>(s1.find("abc"_E)->m_value);
+  const auto &abc = get<TableRow>(s1.find("abc"_E)->m_value);
   ASSERT_EQ(5, abc.size());
-  ASSERT_EQ(1, get<int64_t>(abc.find("a"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(abc.find("b"_E)->m_value));
-  ASSERT_EQ("abc", get<string>(abc.find("c"_E)->m_value));
-  ASSERT_TRUE(abc.find("d"_E)->m_removed);
-  ASSERT_TRUE(abc.find("e"_E)->m_removed);
+  ASSERT_EQ(1, get<int64_t>(abc.find("a"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(abc.find("b"_C)->m_value));
+  ASSERT_EQ("abc", get<string>(abc.find("c"_C)->m_value));
+  ASSERT_TRUE(abc.find("d"_C)->m_removed);
+  ASSERT_TRUE(abc.find("e"_C)->m_removed);
 
-  const DataSet &def = get<DataSet>(s1.find("def"_E)->m_value);
+  const auto &def = get<TableRow>(s1.find("def"_E)->m_value);
   ASSERT_EQ(2, def.size());
-  ASSERT_EQ(1.0, get<double>(def.find("x"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(def.find("y"_E)->m_value));
+  ASSERT_EQ(1.0, get<double>(def.find("x"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(def.find("y"_C)->m_value));
 }
 
 TEST_F(TableTest, test_removed_table_entry)
@@ -230,24 +231,24 @@ TEST_F(TableTest, InitialSet)
   ASSERT_EQ(3, set1.size());
   ASSERT_EQ(3, ce->get<int64_t>("count"));
 
-  auto g531 = get<DataSet>(set1.find("G53.1"_E)->m_value);
+  const auto &g531 = get<TableRow>(set1.find("G53.1"_E)->m_value);
   ASSERT_EQ((size_t)3, g531.size());
-  ASSERT_EQ(1.0, get<double>(g531.find("X"_E)->m_value));
-  ASSERT_EQ(2.0, get<double>(g531.find("Y"_E)->m_value));
-  ASSERT_EQ(3.0, get<double>(g531.find("Z"_E)->m_value));
+  ASSERT_EQ(1.0, get<double>(g531.find("X"_C)->m_value));
+  ASSERT_EQ(2.0, get<double>(g531.find("Y"_C)->m_value));
+  ASSERT_EQ(3.0, get<double>(g531.find("Z"_C)->m_value));
 
-  auto g532 = get<DataSet>(set1.find("G53.2"_E)->m_value);
+  const auto &g532 = get<TableRow>(set1.find("G53.2"_E)->m_value);
   ASSERT_EQ((size_t)3, g532.size());
-  ASSERT_EQ(4.0, get<double>(g532.find("X"_E)->m_value));
-  ASSERT_EQ(5.0, get<double>(g532.find("Y"_E)->m_value));
-  ASSERT_EQ(6.0, get<double>(g532.find("Z"_E)->m_value));
+  ASSERT_EQ(4.0, get<double>(g532.find("X"_C)->m_value));
+  ASSERT_EQ(5.0, get<double>(g532.find("Y"_C)->m_value));
+  ASSERT_EQ(6.0, get<double>(g532.find("Z"_C)->m_value));
 
-  auto g533 = get<DataSet>(set1.find("G53.3"_E)->m_value);
+  const auto &g533 = get<TableRow>(set1.find("G53.3"_E)->m_value);
   ASSERT_EQ((size_t)4, g533.size());
-  ASSERT_EQ(7.0, get<double>(g533.find("X"_E)->m_value));
-  ASSERT_EQ(8.0, get<double>(g533.find("Y"_E)->m_value));
-  ASSERT_EQ(9, get<int64_t>(g533.find("Z"_E)->m_value));
-  ASSERT_EQ(10.0, get<double>(g533.find("U"_E)->m_value));
+  ASSERT_EQ(7.0, get<double>(g533.find("X"_C)->m_value));
+  ASSERT_EQ(8.0, get<double>(g533.find("Y"_C)->m_value));
+  ASSERT_EQ(9, get<int64_t>(g533.find("Z"_C)->m_value));
+  ASSERT_EQ(10.0, get<double>(g533.find("U"_C)->m_value));
 }
 
 #define ASSERT_TABLE_ENTRY(doc, var, key, cell, expected)                                   \
@@ -322,7 +323,7 @@ TEST_F(TableTest, JsonCurrent)
       "U=10.0}");
 
   {
-    PARSE_JSON_RESPONSE("/current");
+    PARSE_JSON_RESPONSE("/LinuxCNC/current");
 
     auto streams = doc.at("/MTConnectStreams/Streams/0/DeviceStream/ComponentStreams"_json_pointer);
     ASSERT_EQ(4_S, streams.size());
@@ -378,7 +379,7 @@ TEST_F(TableTest, JsonCurrentText)
       "G53.3={X=7.0 Y=8.0 Z=9 U=10.0}");
 
   {
-    PARSE_JSON_RESPONSE("/current");
+    PARSE_JSON_RESPONSE("/LinuxCNC/current");
 
     auto streams = doc.at("/MTConnectStreams/Streams/0/DeviceStream/ComponentStreams"_json_pointer);
     ASSERT_EQ(4_S, streams.size());
@@ -500,7 +501,7 @@ TEST_F(TableTest, JsonDefinitionTest)
   m_agentTestHelper->addAdapter();
 
   {
-    PARSE_JSON_RESPONSE("/probe");
+    PARSE_JSON_RESPONSE("/LinuxCNC/probe");
 
     auto devices = doc.at("/MTConnectDevices/Devices"_json_pointer);
     auto device = devices.at(0).at("/Device"_json_pointer);
@@ -775,5 +776,166 @@ TEST_F(TableTest, shoud_parse_table_with_no_space)
                           "//m:DeviceStream//m:WorkOffsetTable"
                           "[@dataItemId='wp1']@resetTriggered",
                           nullptr);
+  }
+}
+
+TEST_F(TableTest, shoud_handle_complex_sequences)
+{
+  m_agentTestHelper->addAdapter();
+
+  {
+    PARSE_XML_RESPONSE("/current");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[@dataItemId='wp1']",
+                          "UNAVAILABLE");
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[@dataItemId='wp1']@count", "0");
+  }
+
+  QueryMap query {{"path", "//DataItem[@id='wp1']"}};
+
+  m_agentTestHelper->m_adapter->processData(
+      "2021-02-01T12:00:00Z|wp1|A={X=1.0 Y=2.0 Z=3.0} B={X=4.0 Y=5.0 Z=6.0} C={X=7.0 Y=8.0 Z=9} "
+      "D={title=\"Testing\"}");
+
+  m_agentTestHelper->m_adapter->processData(
+      "2021-02-01T12:00:00Z|wp1|A= B C={X=107.0 Y=108.0 Z=109.0}");
+
+  m_agentTestHelper->m_adapter->processData("2021-02-01T12:00:00Z|wp1|A={X=101.0 Y=102.0 Z=103.0}");
+
+  ValueResponse s1, s2, s3;
+
+  {
+    PARSE_XML_RESPONSE_QUERY("/sample", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[1]", "UNAVAILABLE");
+
+    s1 = XML_PATH_VALUE(doc, "//m:DeviceStream//m:WorkOffsetTable[2]@sequence");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='A']/m:Cell[@key='X']", "1");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='A']/m:Cell[@key='Y']", "2");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='A']/m:Cell[@key='Z']", "3");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='B']/m:Cell[@key='X']", "4");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='B']/m:Cell[@key='Y']", "5");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='B']/m:Cell[@key='Z']", "6");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='C']/m:Cell[@key='X']", "7");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='C']/m:Cell[@key='Y']", "8");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='C']/m:Cell[@key='Z']", "9");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[2]/m:Entry[@key='D']/m:Cell[@key='title']",
+        "Testing");
+
+    s2 = XML_PATH_VALUE(doc, "//m:DeviceStream//m:WorkOffsetTable[3]@sequence");
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[3]/m:Entry[@key='A']@removed",
+                          "true");
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[3]/m:Entry[@key='B']@removed",
+                          "true");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[3]/m:Entry[@key='C']/m:Cell[@key='X']", "107");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[3]/m:Entry[@key='C']/m:Cell[@key='Y']", "108");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[3]/m:Entry[@key='C']/m:Cell[@key='Z']", "109");
+
+    s3 = XML_PATH_VALUE(doc, "//m:DeviceStream//m:WorkOffsetTable[4]@sequence");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[4]/m:Entry[@key='A']/m:Cell[@key='X']", "101");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[4]/m:Entry[@key='A']/m:Cell[@key='Y']", "102");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[4]/m:Entry[@key='A']/m:Cell[@key='Z']", "103");
+  }
+
+  ASSERT_TRUE(s1.first);
+  ASSERT_TRUE(s2.first);
+  ASSERT_TRUE(s3.first);
+
+  query.clear();
+  query["at"] = *s1.first;
+
+  {
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']/m:Cell[@key='X']", "1");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']/m:Cell[@key='Y']", "2");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']/m:Cell[@key='Z']", "3");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='B']/m:Cell[@key='X']", "4");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='B']/m:Cell[@key='Y']", "5");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='B']/m:Cell[@key='Z']", "6");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='X']", "7");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='Y']", "8");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='Z']", "9");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='D']/m:Cell[@key='title']",
+        "Testing");
+  }
+
+  query["at"] = *s2.first;
+
+  {
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']", nullptr);
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='B']", nullptr);
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='X']", "107");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='Y']", "108");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='Z']", "109");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='D']/m:Cell[@key='title']",
+        "Testing");
+  }
+
+  query["at"] = *s3.first;
+
+  {
+    PARSE_XML_RESPONSE_QUERY("/current", query);
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']/m:Cell[@key='X']", "101");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']/m:Cell[@key='Y']", "102");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='A']/m:Cell[@key='Z']", "103");
+
+    ASSERT_XML_PATH_EQUAL(doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='B']", nullptr);
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='X']", "107");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='Y']", "108");
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='C']/m:Cell[@key='Z']", "109");
+
+    ASSERT_XML_PATH_EQUAL(
+        doc, "//m:DeviceStream//m:WorkOffsetTable[1]/m:Entry[@key='D']/m:Cell[@key='title']",
+        "Testing");
   }
 }

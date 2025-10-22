@@ -4,6 +4,7 @@ from conan.tools.layout import basic_layout
 from conan.errors import ConanInvalidConfiguration
 from conan.errors import ConanException
 from conan.tools.microsoft.visual import msvc_runtime_flag, is_msvc
+from conan.tools.microsoft import VCVars
 
 import os
 import io
@@ -24,7 +25,7 @@ class MRubyConan(ConanFile):
 
     options = { "shared": [True, False], "trace": [True, False] }
 
-    requires = ["oniguruma/6.9.8"]
+    requires = ["oniguruma/6.9.10"]
 
     default_options = {
         "shared": False,
@@ -45,6 +46,9 @@ class MRubyConan(ConanFile):
         basic_layout(self, src_folder="source")
 
     def generate(self):
+        if is_msvc(self):
+            VCVars(self).generate()
+
         self.build_config = os.path.join(self.build_folder, self.source_folder, "build_config", "mtconnect.rb")
 
         with open(self.build_config, "w") as f:
@@ -151,7 +155,7 @@ end
             if is_msvc(self):
                 if self.settings.build_type == 'Debug':
                     f.write("  conf.compilers.each { |c|  c.flags << '/Od' }\n")
-                f.write("  conf.compilers.each { |c| c.flags << '/std:c++17' }\n")
+                f.write("  conf.compilers.each { |c| c.flags << '/std:c++20' }\n")
                 f.write("  conf.compilers.each { |c| c.flags << '/%s' }\n" % msvc_runtime_flag(self))
             else:
                 if self.settings.build_type == 'Debug':
@@ -165,6 +169,12 @@ end
         trace = ''
         if self.options.trace:
             trace = '--trace'
+        # Show all current environment variables
+        self.output.info("=== Environment Variables ===")
+        self.run("set" if self.settings.os == "Windows" else "env", shell=True)
+
+        # Show PATH, Ruby version, and Rake version inline
+        self.output.info(f"PATH: {os.environ.get('PATH')}")
         self.run("rake %s MRUBY_CONFIG=%s MRUBY_BUILD_DIR=%s" % (trace, self.build_config, self.build_folder),
                  cwd=self.source_folder)
 
@@ -185,9 +195,9 @@ end
 
         buf = io.StringIO()
         self.run("{} --cflags".format(ruby), stdout=buf, shell=True)
-        self.cpp_info.defines = [d[2:] for d in buf.getvalue().split(' ') if d.startswith('/D') or d.startswith('-D')]
 
-        self.conf_info.define('mruby', 'ON')
+        defines = [d[2:] for d in buf.getvalue().split(' ') if d.startswith('/D') or d.startswith('-D')]
+        self.cpp_info.defines = defines
 
         self.cpp_info.bindirs = ["bin"]
         if self.settings.os == 'Windows':

@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,7 +95,12 @@ namespace mtconnect {
       /// @param props entity properties
       Entity(const std::string &name, const Properties &props) : m_name(name), m_properties(props)
       {}
-      Entity(const Entity &entity) = default;
+      Entity(const Entity &entity)
+        : m_name(entity.m_name), m_properties(entity.m_properties), m_order(entity.m_order)
+      {
+        if (entity.m_attributes)
+          setAttributes(*entity.m_attributes);
+      }
       virtual ~Entity() {}
 
       /// @brief Get a shared pointer
@@ -348,20 +353,41 @@ namespace mtconnect {
       auto erase(Properties::iterator &it) { return m_properties.erase(it); }
       /// @brief tells the entity which properties are attributes for XML generation
       /// @param[in] a the attributes
-      void setAttributes(AttributeSet a) { m_attributes = a; }
+      void setAttributes(AttributeSet a)
+      {
+        std::unique_ptr<AttributeSet> set(new AttributeSet(a));
+        m_attributes.swap(set);
+      }
       /// @brief get the attributes for XML generation
       /// @return attribute set
-      const auto &getAttributes() const { return m_attributes; }
+      const auto &getAttributes() const
+      {
+        static AttributeSet empty;
+        if (m_attributes)
+          return *m_attributes;
+        else
+          return empty;
+      }
+
+      /// @brief checks if two entity models are different–does a deep analysis
+      /// @param other the other entity to check
+      /// @return `true` if the entities are different
+      bool different(const Entity &other) const;
+
+      /// @brief cover method for entity comparison
+      /// @param other the other entity to check
+      /// @return `true` if the entities are different
+      bool different(const std::shared_ptr<Entity> other) const { return different(*other); }
 
       /// @brief compare two entities for equality
       /// @param other the other entity
       /// @return `true` if they have equal name and properties
-      bool operator==(const Entity &other) const;
+      bool operator==(const Entity &other) const { return !different(other); }
 
       /// @brief compare two entities for inequality
       /// @param other the other entity
       /// @return `true` if they have unequal name and properties
-      bool operator!=(const Entity &other) const { return !(*this == other); }
+      bool operator!=(const Entity &other) const { return different(other); }
 
       /// @brief update this entity to be the same as other
       /// @param other the other entity
@@ -382,7 +408,7 @@ namespace mtconnect {
         boost::uuids::detail::sha1 sha1;
         hash(sha1);
 
-        unsigned int digest[5];
+        unsigned char digest[20];
         sha1.get_digest(digest);
 
         char encoded[32];
@@ -399,6 +425,7 @@ namespace mtconnect {
       }
 
     protected:
+      template <typename ST>
       friend struct HashVisitor;
 
       /// @brief Computes the sha1 hash of the entity skipping properties in `skip`
@@ -436,7 +463,8 @@ namespace mtconnect {
       QName m_name;
       Properties m_properties;
       OrderMapPtr m_order;
-      AttributeSet m_attributes;
+      std::unique_ptr<AttributeSet> m_attributes;
+      std::unique_ptr<ErrorList> m_errors;
     };
 
     /// @brief variant visitor to compare two entity parameter values for equality
@@ -499,23 +527,23 @@ namespace mtconnect {
 
     inline bool operator!=(const Value &v1, const Value &v2) { return !(v1 == v2); }
 
-    inline bool Entity::operator==(const Entity &other) const
+    inline bool Entity::different(const Entity &other) const
     {
       if (m_name != other.m_name)
-        return false;
+        return true;
 
       if (m_properties.size() != other.m_properties.size())
-        return false;
+        return true;
 
       for (auto it1 = m_properties.cbegin(), it2 = other.m_properties.cbegin();
            it1 != m_properties.cend(); it1++, it2++)
       {
         if (it1->first != it2->first || it1->second != it2->second)
         {
-          return false;
+          return true;
         }
       }
-      return true;
+      return false;
     }
 
     /// @brief variant visitor to merge two entities

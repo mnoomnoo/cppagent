@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,6 +77,7 @@ namespace mtconnect {
     DECLARE_CONFIGURATION(EnableSourceDeviceModels);
     DECLARE_CONFIGURATION(WorkerThreads);
     DECLARE_CONFIGURATION(Validation);
+    DECLARE_CONFIGURATION(CorrectTimestamps);
     ///@}
 
     /// @name MQTT Configuration

@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -171,6 +171,34 @@ TEST_F(JsonPrinterStreamTest, DeviceStream)
   ASSERT_EQ(string("SimpleCnc"), stream.at("/name"_json_pointer).get<string>());
   ASSERT_EQ(string("872a3490-bd2d-0136-3eb0-0c85909298d9"),
             stream.at("/uuid"_json_pointer).get<string>());
+}
+
+TEST_F(JsonPrinterStreamTest, should_use_array_for_empty_version_1_stream)
+{
+  Checkpoint checkpoint;
+  ObservationList list;
+  checkpoint.getObservations(list);
+  auto doc = m_printer->printSample(123, 131072, 10254805, 10123733, 10123800, list);
+
+  auto jdoc = json::parse(doc);
+  json stream = jdoc.at("/MTConnectStreams/Streams"_json_pointer);
+  ASSERT_TRUE(stream.is_array());
+  ASSERT_EQ(0, stream.size());
+}
+
+TEST_F(JsonPrinterStreamTest, should_use_object_for_empty_version_2_stream)
+{
+  m_printer = std::make_unique<printer::JsonPrinter>(2, true);
+
+  Checkpoint checkpoint;
+  ObservationList list;
+  checkpoint.getObservations(list);
+  auto doc = m_printer->printSample(123, 131072, 10254805, 10123733, 10123800, list);
+
+  auto jdoc = json::parse(doc);
+  json stream = jdoc.at("/MTConnectStreams/Streams"_json_pointer);
+  ASSERT_TRUE(stream.is_object());
+  ASSERT_EQ(0, stream.size());
 }
 
 TEST_F(JsonPrinterStreamTest, DeviceStream_version_2_one_device)

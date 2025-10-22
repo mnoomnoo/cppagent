@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,8 +75,9 @@ namespace mtconnect::sink::rest_sink {
       if (fields)
         setHttpHeaders(*fields);
 
-      m_errorFunction = [](SessionPtr session, status st, const std::string &msg) {
-        ResponsePtr response = std::make_unique<Response>(st, msg, "text/plain");
+      m_errorFunction = [](SessionPtr session, const RestError &error) {
+        ResponsePtr response =
+            std::make_unique<Response>(error.getStatus(), error.what(), "text/plain");
         session->writeFailureResponse(std::move(response));
         return true;
       };
@@ -157,50 +158,56 @@ namespace mtconnect::sink::rest_sink {
     /// @return `true` if the request was matched and dispatched
     bool dispatch(SessionPtr session, RequestPtr request)
     {
+      auto success = false;
       try
       {
+        std::string message;
         if (request->m_command)
         {
           auto route = m_commands.find(*request->m_command);
           if (route != m_commands.end())
-          {
-            if (route->second->matches(session, request))
-              return true;
-          }
+            success = route->second->run(session, request);
           else
-          {
-            std::stringstream txt;
-            txt << session->getRemote().address()
-                << ": Cannot find handler for command: " << *request->m_command;
-            session->fail(boost::beast::http::status::not_found, txt.str());
-          }
+            message = "Command failed: " + *request->m_command;
         }
         else
         {
           for (auto &r : m_routings)
           {
-            if (r.matches(session, request))
-              return true;
+            success = r.matches(session, request) && r.run(session, request);
+            if (success)
+              break;
           }
+          if (!success)
+          {
+            std::stringstream txt;
+            txt << "Cannot find handler for: " << request->m_verb << " " << request->m_path;
+            message = txt.str();
+          }
+        }
 
+        if (!success)
+        {
           std::stringstream txt;
-          txt << session->getRemote().address() << ": Cannot find handler for: " << request->m_verb
-              << " " << request->m_path;
-          session->fail(boost::beast::http::status::not_found, txt.str());
+          txt << session->getRemote().address() << ": " << message;
+          auto error = Error::make(Error::ErrorCode::INVALID_URI, txt.str());
+          RestError re(error, request->m_accepts, status::not_found, std::nullopt,
+                       request->m_requestId);
+          re.setUri(request->getUri());
+          m_errorFunction(session, re);
         }
       }
-      catch (RequestError &re)
+      catch (RestError &re)
       {
-        LOG(error) << session->getRemote().address() << ": Error processing request: " << re.what();
-        ResponsePtr resp = std::make_unique<Response>(re);
-        session->writeResponse(std::move(resp));
-      }
-      catch (ParameterError &pe)
-      {
-        std::stringstream txt;
-        txt << session->getRemote().address() << ": Parameter Error: " << pe.what();
-        LOG(error) << txt.str();
-        session->fail(boost::beast::http::status::not_found, txt.str());
+        auto uri = request->getUri();
+        re.setUri(uri);
+        LOG(error) << session->getRemote().address() << ": Error processing request: " << uri;
+
+        if (request->m_request)
+          re.setRequest(*request->m_request);
+        if (request->m_requestId)
+          re.setRequestId(*request->m_requestId);
+        m_errorFunction(session, re);
       }
       catch (std::logic_error &le)
       {
@@ -217,7 +224,7 @@ namespace mtconnect::sink::rest_sink {
         session->fail(boost::beast::http::status::not_found, txt.str());
       }
 
-      return false;
+      return success;
     }
 
     /// @brief accept a connection from a client

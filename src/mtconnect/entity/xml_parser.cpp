@@ -1,5 +1,5 @@
 //
-// Copyright Copyright 2009-2024, AMT – The Association For Manufacturing Technology (“AMT”)
+// Copyright Copyright 2009-2025, AMT – The Association For Manufacturing Technology (“AMT”)
 // All rights reserved.
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,7 @@ using namespace std;
 namespace mtconnect::entity {
   using namespace mtconnect::printer;
 
-  extern "C" void XMLCDECL entityXMLErrorFunc(void *ctx ATTRIBUTE_UNUSED, const char *msg, ...)
+  extern "C" void XMLCDECL entityXMLErrorFunc([[maybe_unused]] void *ctx, const char *msg, ...)
   {
     va_list args;
 
@@ -98,7 +98,8 @@ namespace mtconnect::entity {
     return boost::spirit::qi::parse(first, last, parser, value) && first == last;
   }
 
-  static void parseDataSet(xmlNodePtr node, DataSet &dataSet, bool table, bool cell = false)
+  template <typename ST, typename VT>
+  static void parseDataSet(xmlNodePtr node, ST &dataSet, bool table, bool cell = false)
   {
     for (xmlNodePtr child = node->children; child; child = child->next)
     {
@@ -123,14 +124,17 @@ namespace mtconnect::entity {
           }
         }
 
-        DataSetValue value;
+        VT value;
         auto valueNode = child->children;
         if (valueNode)
         {
           if (table && !cell)
           {
-            DataSet &ds = value.emplace<DataSet>();
-            parseDataSet(child, ds, true, true);
+            if constexpr (std::is_same_v<VT, DataSetValue>)
+            {
+              TableRow &row = value.template emplace<TableRow>();
+              parseDataSet<TableRow, TableCellValue>(child, row, true, true);
+            }
           }
           else if (valueNode->type == XML_TEXT_NODE)
           {
@@ -245,7 +249,7 @@ namespace mtconnect::entity {
             if (ef->isDataSet(name))
             {
               auto ds = &properties[name].emplace<DataSet>();
-              parseDataSet(child, *ds, ef->isTable(name));
+              parseDataSet<DataSet, DataSetValue>(child, *ds, ef->isTable(name));
             }
             else if (simple)
             {
